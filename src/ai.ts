@@ -12,6 +12,7 @@ export interface ChatMessage {
 }
 
 export interface ChatRunOptions {
+  systemPrompt?: string;
   extraTools?: readonly Tool[];
   onToolStart?: (toolName: string) => Promise<void> | void;
 }
@@ -82,8 +83,9 @@ export function createChat({
             },
           }))
         : undefined;
+    const activeSystemPrompt = options?.systemPrompt || systemPrompt;
     const conversation: ApiMessage[] = [
-      { role: 'system', content: systemPrompt },
+      { role: 'system', content: activeSystemPrompt },
       ...messages.map((m) => ({ role: m.role, content: m.content })),
     ];
 

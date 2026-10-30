@@ -55,6 +55,18 @@ export function createBot(deps: BotDeps): Client {
     try {
       await c.application.commands.set([
         { name: 'reset', description: 'Clear conversation memory for this channel' },
+        {
+          name: 'prompt',
+          description: 'View, set, or clear custom AI system prompt for this channel',
+          options: [
+            {
+              name: 'text',
+              description: 'New system prompt (leave empty to view, type "reset" to clear)',
+              type: 3, // ApplicationCommandOptionType.String
+              required: false,
+            },
+          ],
+        },
       ]);
     } catch (err) {
       console.error('Failed to register slash commands:', err);
@@ -71,6 +83,31 @@ async function handleInteraction(interaction: Interaction, { memory }: BotDeps):
     memory.clear(interaction.channelId);
     await interaction.reply({
       content: 'Conversation memory cleared for this channel.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+  if (interaction.commandName === 'prompt') {
+    const text = interaction.options.getString('text')?.trim();
+    if (!text) {
+      const current = memory.getPrompt(interaction.channelId);
+      await interaction.reply({
+        content: current ? `Channel prompt: "${current}"` : 'No custom prompt set for this channel (using global default).',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    if (text.toLowerCase() === 'reset') {
+      memory.clearPrompt(interaction.channelId);
+      await interaction.reply({
+        content: 'Custom channel prompt cleared (reverted to global default).',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    memory.setPrompt(interaction.channelId, text);
+    await interaction.reply({
+      content: `Custom channel prompt set: "${text}"`,
       flags: MessageFlags.Ephemeral,
     });
   }
@@ -133,8 +170,10 @@ async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueue): Pro
     let answer: string;
     try {
       const channelTool = createChannelHistoryTool(channel);
+      const channelPrompt = deps.memory.getPrompt(msg.channelId) ?? undefined;
       answer = await withTyping(channel, () =>
         deps.chat([...deps.memory.get(msg.channelId), question], {
+          systemPrompt: channelPrompt,
           extraTools: [channelTool],
           onToolStart: (tool) => {
             deps.stats.toolCalls++;

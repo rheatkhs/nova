@@ -30,6 +30,33 @@ test('createChat handles direct text response', async () => {
   }
 });
 
+test('createChat allows overriding systemPrompt per-call', async () => {
+  let receivedSys = '';
+  const server = Bun.serve({
+    port: 3942,
+    async fetch(req) {
+      const body = (await req.json()) as RequestPayload;
+      receivedSys = body.messages.find((m) => m.role === 'system')?.content || '';
+      return Response.json({
+        choices: [{ message: { role: 'assistant', content: 'Ahoy' } }],
+      });
+    },
+  });
+
+  try {
+    const chat = createChat({
+      baseUrl: 'http://127.0.0.1:3942/v1',
+      apiKey: undefined,
+      model: 'test-model',
+      systemPrompt: 'default sys',
+    });
+    await chat([{ role: 'user', content: 'hi' }], { systemPrompt: 'custom persona' });
+    expect(receivedSys).toBe('custom persona');
+  } finally {
+    server.stop();
+  }
+});
+
 test('createChat executes tool call and returns final reply', async () => {
   let step = 0;
   const server = Bun.serve({
