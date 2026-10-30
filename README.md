@@ -55,7 +55,7 @@ Every change lands on `main` through a pull request that passes CI (`bun typeche
 | `src/index.ts` | Wires config, AI client, memory, bot, and status API |
 | `src/config.ts` | Loads and validates env vars |
 | `src/ai.ts` | OpenAI-compatible chat client |
-| `src/memory.ts` | Rolling per-channel history |
+| `src/memory.ts` | Rolling per-channel history backed by SQLite (`bun:sqlite`) |
 | `src/bot.ts` | Discord client and message handling |
 | `src/chunk.ts` | Splits replies to Discord's 2000-char limit |
 | `src/server.ts` | Elysia status API |
