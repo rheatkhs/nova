@@ -1,9 +1,17 @@
 import type { Client } from 'discord.js';
 import { Elysia } from 'elysia';
 import type { BotStats } from './bot.ts';
+import type { ConversationMemory } from './memory.ts';
+
+export interface ServerDeps {
+  client: Client;
+  memory: ConversationMemory;
+  stats: Readonly<BotStats>;
+  model: string;
+}
 
 /** Read-only status API for health checks and monitoring. */
-export function createServer(client: Client, stats: Readonly<BotStats>) {
+export function createServer({ client, memory, stats, model }: ServerDeps) {
   return new Elysia()
     .get('/health', ({ status }) => (client.isReady() ? { ok: true } : status(503, { ok: false })))
     .get('/stats', () => ({
@@ -11,6 +19,8 @@ export function createServer(client: Client, stats: Readonly<BotStats>) {
       uptimeSec: Math.floor(process.uptime()),
       guilds: client.guilds.cache.size,
       pingMs: client.ws.ping,
+      model,
       ...stats,
+      memory: memory.stats(),
     }));
 }
