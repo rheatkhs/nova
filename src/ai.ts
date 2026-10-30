@@ -11,8 +11,12 @@ export interface ChatMessage {
   content: MessageContent;
 }
 
+export interface ChatRunOptions {
+  onToolStart?: (toolName: string) => Promise<void> | void;
+}
+
 /** Sends a conversation to the model and resolves with its reply. */
-export type Chat = (messages: readonly ChatMessage[]) => Promise<string>;
+export type Chat = (messages: readonly ChatMessage[], options?: ChatRunOptions) => Promise<string>;
 
 export interface AiOptions {
   baseUrl: string;
@@ -76,7 +80,7 @@ export function createChat({
         }))
       : undefined;
 
-  return async (messages) => {
+  return async (messages, options) => {
     const conversation: ApiMessage[] = [
       { role: 'system', content: systemPrompt },
       ...messages.map((m) => ({ role: m.role, content: m.content })),
@@ -118,6 +122,9 @@ export function createChat({
 
       const toolResults = await Promise.all(
         toolCalls.map(async (call) => {
+          try {
+            await options?.onToolStart?.(call.function.name);
+          } catch {}
           const tool = toolMap.get(call.function.name);
           let output: string;
           if (!tool) {

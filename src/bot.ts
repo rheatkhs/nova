@@ -130,7 +130,11 @@ async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueue): Pro
     };
     let answer: string;
     try {
-      answer = await withTyping(channel, () => deps.chat([...deps.memory.get(msg.channelId), question]));
+      answer = await withTyping(channel, () =>
+        deps.chat([...deps.memory.get(msg.channelId), question], {
+          onToolStart: (tool) => void msg.react(toolEmoji(tool)).catch(() => {}),
+        }),
+      );
     } catch (err) {
       deps.stats.failed++;
       console.error(err);
@@ -190,4 +194,18 @@ async function sendAnswer(msg: Message, channel: SendableChannels, answer: strin
   const [first, ...rest] = chunk(answer);
   await msg.reply({ content: first ?? '', allowedMentions: NO_PINGS });
   for (const part of rest) await channel.send({ content: part, allowedMentions: NO_PINGS });
+}
+
+/** Maps a tool name to a short visual status emoji. */
+function toolEmoji(toolName: string): string {
+  switch (toolName) {
+    case 'wikipedia_search':
+      return '🔍';
+    case 'fetch_page':
+      return '🌐';
+    case 'get_current_time':
+      return '⏱️';
+    default:
+      return '⚙️';
+  }
 }

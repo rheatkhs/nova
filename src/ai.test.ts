@@ -82,8 +82,14 @@ test('createChat executes tool call and returns final reply', async () => {
       systemPrompt: 'sys',
       tools: [addTool],
     });
-    const reply = await chat([{ role: 'user', content: '2+3' }]);
+    const startedTools: string[] = [];
+    const reply = await chat([{ role: 'user', content: '2+3' }], {
+      onToolStart: (name) => {
+        startedTools.push(name);
+      },
+    });
     expect(reply).toBe('The sum is 5');
+    expect(startedTools).toEqual(['add']);
     expect(step).toBe(2);
   } finally {
     server.stop();
