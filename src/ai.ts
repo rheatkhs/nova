@@ -12,6 +12,7 @@ export interface ChatMessage {
 }
 
 export interface ChatRunOptions {
+  extraTools?: readonly Tool[];
   onToolStart?: (toolName: string) => Promise<void> | void;
 }
 
@@ -67,20 +68,20 @@ export function createChat({
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
 
-  const toolMap = new Map(tools.map((t) => [t.name, t]));
-  const openAiTools =
-    tools.length > 0
-      ? tools.map((t) => ({
-          type: 'function' as const,
-          function: {
-            name: t.name,
-            description: t.description,
-            parameters: t.parameters,
-          },
-        }))
-      : undefined;
-
   return async (messages, options) => {
+    const allTools = [...tools, ...(options?.extraTools ?? [])];
+    const toolMap = new Map(allTools.map((t) => [t.name, t]));
+    const openAiTools =
+      allTools.length > 0
+        ? allTools.map((t) => ({
+            type: 'function' as const,
+            function: {
+              name: t.name,
+              description: t.description,
+              parameters: t.parameters,
+            },
+          }))
+        : undefined;
     const conversation: ApiMessage[] = [
       { role: 'system', content: systemPrompt },
       ...messages.map((m) => ({ role: m.role, content: m.content })),
