@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { rmSync } from 'node:fs';
-import { ConversationMemory } from './memory.ts';
+import { ConversationMemory, trimToBudget } from './memory.ts';
 
 test('appends messages up to limit in ephemeral mode', () => {
   const mem = new ConversationMemory(2, ':memory:');
@@ -96,5 +96,32 @@ test('getModel and setModel persist custom channel model', () => {
   // Clear
   mem.clearModel('c1');
   expect(mem.getModel('c1')).toBeNull();
+  mem.close();
+});
+
+test('trimToBudget preserves newest messages within character limit', () => {
+  const msgs = [
+    { role: 'user' as const, content: 'aaaa' }, // 4 chars
+    { role: 'assistant' as const, content: 'bbbb' }, // 4 chars
+    { role: 'user' as const, content: 'cccc' }, // 4 chars
+  ];
+
+  // Limit 9 allows 'bbbb' and 'cccc' (8 chars), prunes 'aaaa'
+  expect(trimToBudget(msgs, 9).map((m) => m.content)).toEqual(['bbbb', 'cccc']);
+
+  // Limit 4 allows only 'cccc'
+  expect(trimToBudget(msgs, 4).map((m) => m.content)).toEqual(['cccc']);
+
+  // Limit 100 allows all
+  expect(trimToBudget(msgs, 100).map((m) => m.content)).toEqual(['aaaa', 'bbbb', 'cccc']);
+});
+
+test('ConversationMemory.get trims with maxCharacters argument', () => {
+  const mem = new ConversationMemory(10, ':memory:');
+  mem.append('c1', { role: 'user', content: '12345' });
+  mem.append('c1', { role: 'assistant', content: '67890' });
+
+  expect(mem.get('c1', 7).map((m) => m.content)).toEqual(['67890']);
+  expect(mem.get('c1', 20).map((m) => m.content)).toEqual(['12345', '67890']);
   mem.close();
 });

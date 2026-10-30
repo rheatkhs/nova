@@ -14,6 +14,7 @@ const bot = createBot({
   memory,
   aiChannels: config.aiChannels,
   rateLimiter: createRateLimiter(config.userCooldownMs),
+  historyCharLimit: config.historyCharLimit,
   stats,
 });
 

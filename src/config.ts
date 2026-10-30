@@ -5,6 +5,7 @@ export interface Config {
   ai: AiOptions;
   aiChannels: ReadonlySet<string>;
   historyLimit: number;
+  historyCharLimit: number;
   memoryPath: string;
   userCooldownMs: number;
   http: { hostname: string; port: number };
@@ -21,6 +22,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     },
     aiChannels: new Set((env.AI_CHANNELS ?? '').split(',').map((s) => s.trim()).filter(Boolean)),
     historyLimit: nonNegativeInt(env, 'HISTORY_LIMIT', 20),
+    historyCharLimit: nonNegativeInt(env, 'HISTORY_CHAR_LIMIT', 12_000),
     memoryPath: env.MEMORY_PATH?.trim() || 'data/nova.db',
     userCooldownMs: nonNegativeInt(env, 'USER_COOLDOWN_SEC', 3) * 1_000,
     http: {

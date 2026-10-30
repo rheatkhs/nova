@@ -79,9 +79,17 @@ export class ConversationMemory {
     this.#clearModelStmt = this.#db.prepare('DELETE FROM channel_models WHERE channel_id = ?');
   }
 
-  get(key: string): readonly ChatMessage[] {
+  /**
+   * Returns recent messages for a channel. If maxCharacters is specified,
+   * trims older messages from the head until the total character length fits.
+   */
+  get(key: string, maxCharacters?: number): readonly ChatMessage[] {
     if (this.#limit <= 0) return [];
-    return this.#getStmt.all(key, this.#limit);
+    const raw = this.#getStmt.all(key, this.#limit);
+    if (maxCharacters === undefined || maxCharacters <= 0 || raw.length === 0) {
+      return raw;
+    }
+    return trimToBudget(raw, maxCharacters);
   }
 
   append(key: string, ...messages: ChatMessage[]): void {
@@ -139,4 +147,21 @@ export class ConversationMemory {
   close(): void {
     this.#db.close();
   }
+}
+
+/** Trims older messages from the start of an array until the total character length fits within maxChars. */
+export function trimToBudget(messages: readonly ChatMessage[], maxChars: number): ChatMessage[] {
+  const result: ChatMessage[] = [];
+  let total = 0;
+  // Iterate from newest to oldest
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]!;
+    const len = typeof m.content === 'string' ? m.content.length : JSON.stringify(m.content).length;
+    if (result.length > 0 && total + len > maxChars) {
+      break;
+    }
+    result.unshift(m);
+    total += len;
+  }
+  return result;
 }
