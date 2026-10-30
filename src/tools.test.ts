@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { createChannelHistoryTool, evalMathTool, evaluateMath, fetchPageTool, getCurrentTimeTool, wikipediaSearchTool } from './tools.ts';
+import { createChannelHistoryTool, evalMathTool, evaluateMath, fetchPageTool, getCurrentTimeTool, webSearchTool, wikipediaSearchTool } from './tools.ts';
 
 test('get_current_time returns valid UTC date info', async () => {
   const result = JSON.parse(await getCurrentTimeTool.execute({}));
@@ -77,4 +77,22 @@ test('createChannelHistoryTool reads messages from channel', async () => {
 test('createChannelHistoryTool handles unsupported channel types gracefully', async () => {
   const tool = createChannelHistoryTool(null);
   expect(await tool.execute({})).toBe('Error: channel does not support reading message history');
+});
+
+test('webSearchTool requires query', async () => {
+  expect(await webSearchTool.execute({})).toBe('Error: query is required');
+  expect(await webSearchTool.execute({ query: '   ' })).toBe('Error: query is required');
+});
+
+test('webSearchTool returns helpful error when neither Brave nor SearXNG configured', async () => {
+  const origBrave = process.env.BRAVE_API_KEY;
+  const origSearxng = process.env.SEARXNG_URL;
+  delete process.env.BRAVE_API_KEY;
+  delete process.env.SEARXNG_URL;
+
+  const res = await webSearchTool.execute({ query: 'bun' });
+  expect(res).toContain('Error: web search requires either SEARXNG_URL or BRAVE_API_KEY configured');
+
+  if (origBrave) process.env.BRAVE_API_KEY = origBrave;
+  if (origSearxng) process.env.SEARXNG_URL = origSearxng;
 });
