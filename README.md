@@ -29,6 +29,16 @@ Elysia server on `HOST:PORT` (default `127.0.0.1:3000`):
 | `bun typecheck` | Strict type check (`tsc`) |
 | `bun test` | Unit tests |
 
+## Workflow
+
+`main` is protected: every change lands through a pull request that passes CI (`bun typecheck`, `bun test`).
+
+1. Branch from `main`: `git switch main && git pull && git switch -c <type>/<short-name>`.
+2. Commit with [Conventional Commits](https://www.conventionalcommits.org): `feat:`, `fix:`, `ci:`, `docs:`, `refactor:`, `test:`, `chore:`.
+3. Push and open a PR: `git push -u origin HEAD && gh pr create --fill`.
+4. Merge once CI is green: `gh pr merge --squash`. The PR title becomes the commit on `main`; the branch is deleted automatically.
+5. Clean up locally: `git switch main && git pull --prune && git branch -d <branch>`.
+
 ## Layout
 
 | File | Role |
