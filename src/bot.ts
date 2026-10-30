@@ -288,6 +288,8 @@ function toolEmoji(toolName: string): string {
   switch (toolName) {
     case 'wikipedia_search':
       return '🔍';
+    case 'web_search':
+      return '🔎';
     case 'fetch_page':
       return '🌐';
     case 'get_current_time':
