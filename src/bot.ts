@@ -95,7 +95,11 @@ async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueue): Pro
 
   const channel = msg.channel;
   await queue(msg.channelId, async () => {
-    const question: ChatMessage = { role: 'user', content: `${msg.author.displayName}: ${text}` };
+    const refContext = await getReferencedContext(msg, botId);
+    const content = refContext
+      ? `${refContext}\n${msg.author.displayName}: ${text}`
+      : `${msg.author.displayName}: ${text}`;
+    const question: ChatMessage = { role: 'user', content };
     let answer: string;
     try {
       answer = await withTyping(channel, () => deps.chat([...deps.memory.get(msg.channelId), question]));
@@ -115,6 +119,20 @@ async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueue): Pro
     deps.memory.append(msg.channelId, question, { role: 'assistant', content: answer });
     deps.stats.answered++;
   });
+}
+
+/** Fetches the message being replied to, unless it was authored by the bot itself. */
+async function getReferencedContext(msg: Message, botId: string): Promise<string | null> {
+  if (!msg.reference?.messageId) return null;
+  try {
+    const ref = await msg.fetchReference();
+    if (ref.author.id === botId) return null; // bot's own prior reply is already in channel history
+    const author = ref.author.displayName || ref.author.username;
+    const body = ref.content.slice(0, 500).trim();
+    return body ? `[Replying to ${author}: "${body}"]` : null;
+  } catch {
+    return null; // message deleted or inaccessible
+  }
 }
 
 async function withTyping<T>(channel: SendableChannels, task: () => Promise<T>): Promise<T> {
