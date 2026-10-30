@@ -11,6 +11,7 @@ import type { Chat, ChatMessage } from './ai.ts';
 import { chunk } from './chunk.ts';
 import type { ConversationMemory } from './memory.ts';
 import { createQueue, type TaskQueue } from './queue.ts';
+import type { RateLimiter } from './rate-limit.ts';
 
 export interface BotStats {
   answered: number;
@@ -22,6 +23,8 @@ export interface BotDeps {
   memory: ConversationMemory;
   /** Channels where the bot answers every message, no mention needed. */
   aiChannels: ReadonlySet<string>;
+  /** Enforces minimum spacing between questions per user. */
+  rateLimiter: RateLimiter;
   /** Mutated in place; read by the status API. */
   stats: BotStats;
 }
@@ -61,6 +64,11 @@ async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueue): Pro
 
   const text = msg.content.replace(new RegExp(`<@!?${botId}>`, 'g'), '').trim();
   if (!text) return;
+
+  if (!deps.rateLimiter.check(msg.author.id)) {
+    void msg.react('⏳').catch(() => {});
+    return;
+  }
 
   const channel = msg.channel;
   await queue(msg.channelId, async () => {
