@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { fetchPageTool, getCurrentTimeTool, wikipediaSearchTool } from './tools.ts';
+import { createChannelHistoryTool, fetchPageTool, getCurrentTimeTool, wikipediaSearchTool } from './tools.ts';
 
 test('get_current_time returns valid UTC date info', async () => {
   const result = JSON.parse(await getCurrentTimeTool.execute({}));
@@ -39,4 +39,27 @@ test('fetch_page strips HTML tags and scripts from page', async () => {
   } finally {
     server.stop();
   }
+});
+
+test('createChannelHistoryTool reads messages from channel', async () => {
+  const fakeChannel = {
+    messages: {
+      fetch: async ({ limit }: { limit: number }) => ({
+        values: () =>
+          [
+            { author: { displayName: 'Alice' }, content: 'first message' },
+            { author: { username: 'Bob' }, content: 'second message' },
+          ].slice(0, limit)[Symbol.iterator](),
+      }),
+    },
+  };
+
+  const tool = createChannelHistoryTool(fakeChannel);
+  const result = await tool.execute({ limit: 5 });
+  expect(result).toBe('Bob: second message\nAlice: first message');
+});
+
+test('createChannelHistoryTool handles unsupported channel types gracefully', async () => {
+  const tool = createChannelHistoryTool(null);
+  expect(await tool.execute({})).toBe('Error: channel does not support reading message history');
 });

@@ -13,6 +13,7 @@ import type { Chat, ChatMessage, MessagePart } from './ai.ts';
 import { chunk } from './chunk.ts';
 import type { ConversationMemory } from './memory.ts';
 import { createQueue, type TaskQueue } from './queue.ts';
+import { createChannelHistoryTool } from './tools.ts';
 import type { RateLimiter } from './rate-limit.ts';
 
 export interface BotStats {
@@ -130,8 +131,10 @@ async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueue): Pro
     };
     let answer: string;
     try {
+      const channelTool = createChannelHistoryTool(channel);
       answer = await withTyping(channel, () =>
         deps.chat([...deps.memory.get(msg.channelId), question], {
+          extraTools: [channelTool],
           onToolStart: (tool) => void msg.react(toolEmoji(tool)).catch(() => {}),
         }),
       );
@@ -205,6 +208,8 @@ function toolEmoji(toolName: string): string {
       return '🌐';
     case 'get_current_time':
       return '⏱️';
+    case 'read_channel_history':
+      return '📜';
     default:
       return '⚙️';
   }
