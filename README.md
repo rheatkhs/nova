@@ -1,6 +1,6 @@
 # Nova
 
-AI agent Discord bot. Answers when mentioned, replied to, DMed, or in configured channels. Remembers recent messages per channel; use `/reset` to clear.
+AI agent Discord bot. Answers when mentioned, replied to, DMed, in configured channels, or in active threads. Remembers recent messages per channel/thread; use `/reset` to clear.
 
 ## Setup
 
