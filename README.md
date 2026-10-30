@@ -31,7 +31,7 @@ Elysia server on `HOST:PORT` (default `127.0.0.1:3000`):
 
 ## Workflow
 
-`main` is protected: every change lands through a pull request that passes CI (`bun typecheck`, `bun test`).
+Every change lands on `main` through a pull request that passes CI (`bun typecheck`, `bun test`). No direct pushes to `main`.
 
 1. Branch from `main`: `git switch main && git pull && git switch -c <type>/<short-name>`.
 2. Commit with [Conventional Commits](https://www.conventionalcommits.org): `feat:`, `fix:`, `ci:`, `docs:`, `refactor:`, `test:`, `chore:`.
