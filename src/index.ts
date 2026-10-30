@@ -19,4 +19,16 @@ const bot = createBot({
 const server = createServer(bot, stats).listen(config.http);
 console.log(`Status API on http://${server.server?.hostname}:${server.server?.port}`);
 
+let stopping = false;
+for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+  process.on(signal, () => {
+    if (stopping) return;
+    stopping = true;
+    console.log(`Received ${signal}, shutting down...`);
+    void Promise.allSettled([server.stop(), bot.destroy()]).then(() => {
+      process.exit(0);
+    });
+  });
+}
+
 await bot.login(config.discordToken);
