@@ -14,6 +14,9 @@ export class ConversationMemory {
   readonly #insertStmt: Statement<void, [string, string, string, number]>;
   readonly #pruneStmt: Statement<void, [string, string, number]>;
   readonly #clearStmt: Statement<void, [string]>;
+  readonly #getPromptStmt: Statement<{ prompt: string }, [string]>;
+  readonly #setPromptStmt: Statement<void, [string, string, number]>;
+  readonly #clearPromptStmt: Statement<void, [string]>;
 
   constructor(limit: number, path = 'data/nova.db') {
     this.#limit = limit;
@@ -33,6 +36,11 @@ export class ConversationMemory {
         created_at INTEGER NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_channel_id ON messages (channel_id, id);
+      CREATE TABLE IF NOT EXISTS channel_prompts (
+        channel_id TEXT PRIMARY KEY,
+        prompt TEXT NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
     `);
 
     this.#getStmt = this.#db.prepare(`
@@ -49,6 +57,12 @@ export class ConversationMemory {
       )
     `);
     this.#clearStmt = this.#db.prepare('DELETE FROM messages WHERE channel_id = ?');
+    this.#getPromptStmt = this.#db.prepare('SELECT prompt FROM channel_prompts WHERE channel_id = ?');
+    this.#setPromptStmt = this.#db.prepare(`
+      INSERT INTO channel_prompts (channel_id, prompt, updated_at) VALUES (?, ?, ?)
+      ON CONFLICT(channel_id) DO UPDATE SET prompt = excluded.prompt, updated_at = excluded.updated_at
+    `);
+    this.#clearPromptStmt = this.#db.prepare('DELETE FROM channel_prompts WHERE channel_id = ?');
   }
 
   get(key: string): readonly ChatMessage[] {
@@ -70,6 +84,19 @@ export class ConversationMemory {
   }
   clear(key: string): void {
     this.#clearStmt.run(key);
+  }
+
+  getPrompt(channelId: string): string | null {
+    const row = this.#getPromptStmt.get(channelId);
+    return row?.prompt ?? null;
+  }
+
+  setPrompt(channelId: string, prompt: string): void {
+    this.#setPromptStmt.run(channelId, prompt, Date.now());
+  }
+
+  clearPrompt(channelId: string): void {
+    this.#clearPromptStmt.run(channelId);
   }
 
   stats(): { totalMessages: number; channels: number } {

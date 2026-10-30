@@ -62,3 +62,21 @@ test('stats reports accurate message counts and channel counts', () => {
   expect(mem.stats()).toEqual({ totalMessages: 1, channels: 1 });
   mem.close();
 });
+
+test('getPrompt and setPrompt persist custom channel persona', () => {
+  const mem = new ConversationMemory(10, ':memory:');
+  expect(mem.getPrompt('c1')).toBeNull();
+
+  mem.setPrompt('c1', 'You are a pirate.');
+  expect(mem.getPrompt('c1')).toBe('You are a pirate.');
+  expect(mem.getPrompt('c2')).toBeNull();
+
+  // Overwrite
+  mem.setPrompt('c1', 'You are a chef.');
+  expect(mem.getPrompt('c1')).toBe('You are a chef.');
+
+  // Clear
+  mem.clearPrompt('c1');
+  expect(mem.getPrompt('c1')).toBeNull();
+  mem.close();
+});
