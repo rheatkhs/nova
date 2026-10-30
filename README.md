@@ -11,6 +11,15 @@ AI agent Discord bot. Answers when mentioned, replied to, DMed, or in configured
 
 Requires [Bun](https://bun.sh) 1.2+ (runs TypeScript and loads `.env` natively).
 
+### Docker
+
+```bash
+docker build -t nova .
+# Reaching host APIs (like 9router on localhost:20128) needs --network host on Linux:
+docker run -d --name nova --env-file .env --network host nova
+```
+
+
 ## Status API
 
 Elysia server on `HOST:PORT` (default `127.0.0.1:3000`):
