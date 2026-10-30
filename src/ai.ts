@@ -1,6 +1,12 @@
+export type MessageContent = string | MessagePart[];
+
+export type MessagePart =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } };
+
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
-  content: string;
+  content: MessageContent;
 }
 
 /** Sends a conversation to the model and resolves with its reply. */

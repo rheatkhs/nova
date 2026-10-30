@@ -9,7 +9,7 @@ import {
   type MessageMentionOptions,
   type SendableChannels,
 } from 'discord.js';
-import type { Chat, ChatMessage } from './ai.ts';
+import type { Chat, ChatMessage, MessagePart } from './ai.ts';
 import { chunk } from './chunk.ts';
 import type { ConversationMemory } from './memory.ts';
 import { createQueue, type TaskQueue } from './queue.ts';
@@ -85,9 +85,11 @@ async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueue): Pro
     msg.mentions.repliedUser?.id === botId;
   if (!addressed) return;
 
+  const imageAttachments = [...msg.attachments.values()].filter(
+    (a) => a.contentType?.startsWith('image/') && a.size <= 10 * 1024 * 1024,
+  ).slice(0, 4);
   const text = msg.content.replace(new RegExp(`<@!?${botId}>`, 'g'), '').trim();
-  if (!text) return;
-
+  if (!text && imageAttachments.length === 0) return;
   if (!deps.rateLimiter.check(msg.author.id)) {
     void msg.react('⏳').catch(() => {});
     return;
@@ -96,10 +98,29 @@ async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueue): Pro
   const channel = msg.channel;
   await queue(msg.channelId, async () => {
     const refContext = await getReferencedContext(msg, botId);
-    const content = refContext
-      ? `${refContext}\n${msg.author.displayName}: ${text}`
-      : `${msg.author.displayName}: ${text}`;
-    const question: ChatMessage = { role: 'user', content };
+    const promptText = text || 'Describe or answer based on the attached image.';
+    const userText = refContext
+      ? `${refContext}\n${msg.author.displayName}: ${promptText}`
+      : `${msg.author.displayName}: ${promptText}`;
+
+    const dataUris = await Promise.all(
+      imageAttachments.map((a) => toDataUri(a.url, a.contentType ?? 'image/jpeg')),
+    );
+    const validImages = dataUris.filter((u): u is string => u !== null);
+
+    const question: ChatMessage = validImages.length === 0
+      ? { role: 'user', content: userText }
+      : {
+          role: 'user',
+          content: [
+            { type: 'text', text: userText },
+            ...validImages.map((url): MessagePart => ({ type: 'image_url', image_url: { url } })),
+          ],
+        };
+    const memoryQuestion: ChatMessage = {
+      role: 'user',
+      content: validImages.length > 0 ? `${userText} [Attached ${validImages.length} image(s)]` : userText,
+    };
     let answer: string;
     try {
       answer = await withTyping(channel, () => deps.chat([...deps.memory.get(msg.channelId), question]));
@@ -116,7 +137,7 @@ async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueue): Pro
       deps.stats.failed++;
       throw err;
     }
-    deps.memory.append(msg.channelId, question, { role: 'assistant', content: answer });
+    deps.memory.append(msg.channelId, memoryQuestion, { role: 'assistant', content: answer });
     deps.stats.answered++;
   });
 }
@@ -132,6 +153,18 @@ async function getReferencedContext(msg: Message, botId: string): Promise<string
     return body ? `[Replying to ${author}: "${body}"]` : null;
   } catch {
     return null; // message deleted or inaccessible
+  }
+}
+
+/** Downloads an attachment and converts it to a base64 data URI for vision models. */
+async function toDataUri(url: string, contentType: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+    if (!res.ok) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    return `data:${contentType};base64,${buf.toString('base64')}`;
+  } catch {
+    return null;
   }
 }
 

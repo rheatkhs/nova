@@ -61,13 +61,13 @@ export class ConversationMemory {
     const now = Date.now();
     const insertMany = this.#db.transaction((msgs: ChatMessage[]) => {
       for (const m of msgs) {
-        this.#insertStmt.run(key, m.role, m.content, now);
+        const text = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
+        this.#insertStmt.run(key, m.role, text, now);
       }
       this.#pruneStmt.run(key, key, this.#limit);
     });
     insertMany(messages);
   }
-
   clear(key: string): void {
     this.#clearStmt.run(key);
   }
