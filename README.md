@@ -1,0 +1,42 @@
+# Nova
+
+AI agent Discord bot. Answers when mentioned, replied to, DMed, or in configured channels. Remembers recent messages per channel.
+
+## Setup
+
+1. Create an app at https://discord.com/developers/applications. In **Bot**, copy the token and enable **Message Content Intent**.
+2. Invite the bot: **OAuth2 > URL Generator**, scope `bot`, permissions `Send Messages`, `Read Message History`.
+3. `cp .env.example .env` and fill in `DISCORD_TOKEN`, `AI_API_KEY`, and `AI_MODEL`. Any OpenAI-compatible API works, including local Ollama with `AI_BASE_URL=http://localhost:11434/v1`.
+4. `bun install && bun start`
+
+Requires [Bun](https://bun.sh) 1.2+ (runs TypeScript and loads `.env` natively).
+
+## Status API
+
+Elysia server on `HOST:PORT` (default `127.0.0.1:3000`):
+
+| Route | Response |
+| --- | --- |
+| `GET /health` | `200 {"ok":true}` when connected to Discord, else `503` |
+| `GET /stats` | Ready state, uptime, guild count, gateway ping, answered/failed counts |
+
+## Scripts
+
+| Command | Purpose |
+| --- | --- |
+| `bun start` | Run the bot |
+| `bun dev` | Run with auto-restart on file change |
+| `bun typecheck` | Strict type check (`tsc`) |
+| `bun test` | Unit tests |
+
+## Layout
+
+| File | Role |
+| --- | --- |
+| `src/index.ts` | Wires config, AI client, memory, bot, and status API |
+| `src/config.ts` | Loads and validates env vars |
+| `src/ai.ts` | OpenAI-compatible chat client |
+| `src/memory.ts` | Rolling per-channel history |
+| `src/bot.ts` | Discord client and message handling |
+| `src/chunk.ts` | Splits replies to Discord's 2000-char limit |
+| `src/server.ts` | Elysia status API |
