@@ -14,3 +14,29 @@ test('chunk respects limit and preserves content', () => {
   expect(parts.every((p) => p.length <= 2000)).toBe(true);
   expect(parts.join(' ')).toBe(long);
 });
+
+test('re-closes and re-opens fenced code blocks across splits', () => {
+  const code = '```ts\nconst a = 1;\nconst b = 2;\n```';
+  // Cut roughly between line 1 and line 2.
+  const parts = chunk(code, 30);
+  expect(parts.length).toBe(2);
+
+  // First part ends with closed fence.
+  expect(parts[0]?.endsWith('```')).toBe(true);
+  // Second part starts with reopened fence with same language.
+  expect(parts[1]?.startsWith('```ts\n')).toBe(true);
+  expect(parts[1]?.endsWith('```')).toBe(true);
+});
+
+test('handles bare code fences without language tag', () => {
+  const code = '```\nline 1\nline 2\n```';
+  const parts = chunk(code, 18);
+  expect(parts.length).toBe(2);
+  expect(parts[0]?.endsWith('```')).toBe(true);
+  expect(parts[1]?.startsWith('```\n')).toBe(true);
+});
+
+test('does not mangle code blocks that fit entirely within one chunk', () => {
+  const code = 'before\n```ts\nconst x = 1;\n```\nafter';
+  expect(chunk(code, 100)).toEqual([code]);
+});
