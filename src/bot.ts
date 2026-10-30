@@ -210,6 +210,8 @@ function toolEmoji(toolName: string): string {
       return '⏱️';
     case 'read_channel_history':
       return '📜';
+    case 'eval_math':
+      return '🔢';
     default:
       return '⚙️';
   }
