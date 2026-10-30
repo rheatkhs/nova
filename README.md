@@ -19,6 +19,16 @@ docker build -t nova .
 docker run -d --name nova --env-file .env --network host nova
 ```
 
+## Tools
+
+Nova runs an agent loop (`maxToolSteps = 5`) with built-in tools:
+
+| Tool | Purpose |
+| --- | --- |
+| `get_current_time` | Returns real-time UTC timestamp, date, and day of week |
+| `wikipedia_search` | Official Wikipedia search API for facts, people, and concepts |
+| `fetch_page` | Fetches any HTTP/HTTPS URL, strips HTML/scripts, returns text |
+
 
 ## Status API
 
@@ -54,7 +64,8 @@ Every change lands on `main` through a pull request that passes CI (`bun typeche
 | --- | --- |
 | `src/index.ts` | Wires config, AI client, memory, bot, and status API |
 | `src/config.ts` | Loads and validates env vars |
-| `src/ai.ts` | OpenAI-compatible chat client |
+| `src/ai.ts` | Multi-step agent loop with tool-calling support |
+| `src/tools.ts` | Built-in tools: `get_current_time`, `wikipedia_search`, `fetch_page` |
 | `src/memory.ts` | Rolling per-channel history backed by SQLite (`bun:sqlite`) |
 | `src/bot.ts` | Discord client and message handling |
 | `src/chunk.ts` | Splits replies to Discord's 2000-char limit |
