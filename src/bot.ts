@@ -29,6 +29,8 @@ export interface BotDeps {
   aiChannels: ReadonlySet<string>;
   /** Enforces minimum spacing between questions per user. */
   rateLimiter: RateLimiter;
+  /** Maximum character budget across history before older messages are pruned. */
+  historyCharLimit?: number;
   /** Mutated in place; read by the status API. */
   stats: BotStats;
 }
@@ -210,7 +212,7 @@ async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueue): Pro
       const channelPrompt = deps.memory.getPrompt(msg.channelId) ?? undefined;
       const channelModel = deps.memory.getModel(msg.channelId) ?? undefined;
       answer = await withTyping(channel, () =>
-        deps.chat([...deps.memory.get(msg.channelId), question], {
+        deps.chat([...deps.memory.get(msg.channelId, deps.historyCharLimit), question], {
           model: channelModel,
           systemPrompt: channelPrompt,
           extraTools: [channelTool],
