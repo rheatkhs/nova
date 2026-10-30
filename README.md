@@ -26,6 +26,7 @@ Nova runs an agent loop (`maxToolSteps = 5`) with built-in tools:
 | Tool | Purpose |
 | --- | --- |
 | `get_current_time` | Returns real-time UTC timestamp, date, and day of week |
+| `eval_math` | Evaluates arithmetic, trigonometry, powers, and roots safely |
 | `wikipedia_search` | Official Wikipedia search API for facts, people, and concepts |
 | `fetch_page` | Fetches any HTTP/HTTPS URL, strips HTML/scripts, returns text |
 | `read_channel_history` | Reads recent chat messages in the current Discord channel (contextual tool) |

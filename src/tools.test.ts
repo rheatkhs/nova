@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { createChannelHistoryTool, fetchPageTool, getCurrentTimeTool, wikipediaSearchTool } from './tools.ts';
+import { createChannelHistoryTool, evalMathTool, evaluateMath, fetchPageTool, getCurrentTimeTool, wikipediaSearchTool } from './tools.ts';
 
 test('get_current_time returns valid UTC date info', async () => {
   const result = JSON.parse(await getCurrentTimeTool.execute({}));
@@ -7,6 +7,21 @@ test('get_current_time returns valid UTC date info', async () => {
   expect(typeof result.weekday).toBe('string');
   expect(typeof result.date).toBe('string');
   expect(new Date(result.utc).getTime()).toBeGreaterThan(0);
+});
+
+test('evalMathTool evaluates arithmetic with precedence and parentheses', async () => {
+  expect(await evalMathTool.execute({ expression: '3 + 5 * 2' })).toBe('13');
+  expect(await evalMathTool.execute({ expression: '(3 + 5) * 2' })).toBe('16');
+  expect(await evalMathTool.execute({ expression: '2 ^ 3' })).toBe('8');
+  expect(await evalMathTool.execute({ expression: 'sqrt(144) + abs(-6)' })).toBe('18');
+  expect(Number(await evalMathTool.execute({ expression: 'pi * 2' }))).toBeCloseTo(Math.PI * 2);
+});
+
+test('evalMathTool handles errors safely', async () => {
+  expect(await evalMathTool.execute({})).toBe('Error: expression is required');
+  expect(await evalMathTool.execute({ expression: '10 / 0' })).toBe('Math error: division by zero');
+  expect(await evalMathTool.execute({ expression: 'alert(1)' })).toBe('Math error: unknown function: alert');
+  expect(await evalMathTool.execute({ expression: '2 + (3 * 4' })).toBe('Math error: missing closing parenthesis');
 });
 
 test('wikipedia_search validates query parameter', async () => {
