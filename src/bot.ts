@@ -61,16 +61,25 @@ async function handleMessage(msg: Message, { chat, memory, aiChannels, stats }: 
   if (!text) return;
 
   const question: ChatMessage = { role: 'user', content: `${msg.author.displayName}: ${text}` };
+  let answer: string;
   try {
-    const answer = await withTyping(msg.channel, () => chat([...memory.get(msg.channelId), question]));
-    memory.append(msg.channelId, question, { role: 'assistant', content: answer });
-    await sendAnswer(msg, msg.channel, answer);
-    stats.answered++;
+    answer = await withTyping(msg.channel, () => chat([...memory.get(msg.channelId), question]));
   } catch (err) {
     stats.failed++;
     console.error(err);
     await msg.reply({ content: 'AI request failed, try again later.', allowedMentions: NO_PINGS });
+    return;
   }
+
+  try {
+    await sendAnswer(msg, msg.channel, answer);
+  } catch (err) {
+    stats.failed++; // Discord rejected the reply; replying with an error would likely fail too.
+    throw err;
+  }
+  // Remember only what the user actually saw.
+  memory.append(msg.channelId, question, { role: 'assistant', content: answer });
+  stats.answered++;
 }
 
 async function withTyping<T>(channel: SendableChannels, task: () => Promise<T>): Promise<T> {
