@@ -17,6 +17,9 @@ export class ConversationMemory {
   readonly #getPromptStmt: Statement<{ prompt: string }, [string]>;
   readonly #setPromptStmt: Statement<void, [string, string, number]>;
   readonly #clearPromptStmt: Statement<void, [string]>;
+  readonly #getModelStmt: Statement<{ model: string }, [string]>;
+  readonly #setModelStmt: Statement<void, [string, string, number]>;
+  readonly #clearModelStmt: Statement<void, [string]>;
 
   constructor(limit: number, path = 'data/nova.db') {
     this.#limit = limit;
@@ -41,6 +44,11 @@ export class ConversationMemory {
         prompt TEXT NOT NULL,
         updated_at INTEGER NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS channel_models (
+        channel_id TEXT PRIMARY KEY,
+        model TEXT NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
     `);
 
     this.#getStmt = this.#db.prepare(`
@@ -63,6 +71,12 @@ export class ConversationMemory {
       ON CONFLICT(channel_id) DO UPDATE SET prompt = excluded.prompt, updated_at = excluded.updated_at
     `);
     this.#clearPromptStmt = this.#db.prepare('DELETE FROM channel_prompts WHERE channel_id = ?');
+    this.#getModelStmt = this.#db.prepare('SELECT model FROM channel_models WHERE channel_id = ?');
+    this.#setModelStmt = this.#db.prepare(`
+      INSERT INTO channel_models (channel_id, model, updated_at) VALUES (?, ?, ?)
+      ON CONFLICT(channel_id) DO UPDATE SET model = excluded.model, updated_at = excluded.updated_at
+    `);
+    this.#clearModelStmt = this.#db.prepare('DELETE FROM channel_models WHERE channel_id = ?');
   }
 
   get(key: string): readonly ChatMessage[] {
@@ -97,6 +111,19 @@ export class ConversationMemory {
 
   clearPrompt(channelId: string): void {
     this.#clearPromptStmt.run(channelId);
+  }
+
+  getModel(channelId: string): string | null {
+    const row = this.#getModelStmt.get(channelId);
+    return row?.model ?? null;
+  }
+
+  setModel(channelId: string, model: string): void {
+    this.#setModelStmt.run(channelId, model, Date.now());
+  }
+
+  clearModel(channelId: string): void {
+    this.#clearModelStmt.run(channelId);
   }
 
   stats(): { totalMessages: number; channels: number } {

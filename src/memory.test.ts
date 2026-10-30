@@ -80,3 +80,21 @@ test('getPrompt and setPrompt persist custom channel persona', () => {
   expect(mem.getPrompt('c1')).toBeNull();
   mem.close();
 });
+
+test('getModel and setModel persist custom channel model', () => {
+  const mem = new ConversationMemory(10, ':memory:');
+  expect(mem.getModel('c1')).toBeNull();
+
+  mem.setModel('c1', 'ag/claude-sonnet-5-5');
+  expect(mem.getModel('c1')).toBe('ag/claude-sonnet-5-5');
+  expect(mem.getModel('c2')).toBeNull();
+
+  // Overwrite
+  mem.setModel('c1', 'ag/gemini-3.8-flash');
+  expect(mem.getModel('c1')).toBe('ag/gemini-3.8-flash');
+
+  // Clear
+  mem.clearModel('c1');
+  expect(mem.getModel('c1')).toBeNull();
+  mem.close();
+});
