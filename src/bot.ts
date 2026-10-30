@@ -19,6 +19,7 @@ import type { RateLimiter } from './rate-limit.ts';
 export interface BotStats {
   answered: number;
   failed: number;
+  toolCalls: number;
 }
 
 export interface BotDeps {
@@ -135,7 +136,10 @@ async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueue): Pro
       answer = await withTyping(channel, () =>
         deps.chat([...deps.memory.get(msg.channelId), question], {
           extraTools: [channelTool],
-          onToolStart: (tool) => void msg.react(toolEmoji(tool)).catch(() => {}),
+          onToolStart: (tool) => {
+            deps.stats.toolCalls++;
+            void msg.react(toolEmoji(tool)).catch(() => {});
+          },
         }),
       );
     } catch (err) {

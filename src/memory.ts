@@ -72,6 +72,16 @@ export class ConversationMemory {
     this.#clearStmt.run(key);
   }
 
+  stats(): { totalMessages: number; channels: number } {
+    const row = this.#db
+      .query('SELECT count(*) AS total, count(DISTINCT channel_id) AS channels FROM messages')
+      .get() as { total: number; channels: number } | null;
+    return {
+      totalMessages: row?.total ?? 0,
+      channels: row?.channels ?? 0,
+    };
+  }
+
   close(): void {
     this.#db.close();
   }

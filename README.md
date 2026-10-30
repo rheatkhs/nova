@@ -39,7 +39,7 @@ Elysia server on `HOST:PORT` (default `127.0.0.1:3000`):
 | Route | Response |
 | --- | --- |
 | `GET /health` | `200 {"ok":true}` when connected to Discord, else `503` |
-| `GET /stats` | Ready state, uptime, guild count, gateway ping, answered/failed counts |
+| `GET /stats` | Ready state, uptime, guild count, gateway ping, model name, answered/failed/toolCalls counts, and SQLite memory metrics |
 
 ## Scripts
 

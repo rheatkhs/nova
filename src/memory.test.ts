@@ -49,3 +49,16 @@ test('limit 0 stores nothing', () => {
   expect(mem.get('c1')).toEqual([]);
   mem.close();
 });
+
+test('stats reports accurate message counts and channel counts', () => {
+  const mem = new ConversationMemory(10, ':memory:');
+  expect(mem.stats()).toEqual({ totalMessages: 0, channels: 0 });
+
+  mem.append('c1', { role: 'user', content: '1' }, { role: 'assistant', content: '2' });
+  mem.append('c2', { role: 'user', content: '3' });
+  expect(mem.stats()).toEqual({ totalMessages: 3, channels: 2 });
+
+  mem.clear('c1');
+  expect(mem.stats()).toEqual({ totalMessages: 1, channels: 1 });
+  mem.close();
+});

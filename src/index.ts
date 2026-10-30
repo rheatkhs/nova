@@ -7,7 +7,7 @@ import { createServer } from './server.ts';
 import { defaultTools } from './tools.ts';
 
 const config = loadConfig();
-const stats: BotStats = { answered: 0, failed: 0 };
+const stats: BotStats = { answered: 0, failed: 0, toolCalls: 0 };
 const memory = new ConversationMemory(config.historyLimit, config.memoryPath);
 const bot = createBot({
   chat: createChat({ ...config.ai, tools: defaultTools }),
@@ -17,7 +17,7 @@ const bot = createBot({
   stats,
 });
 
-const server = createServer(bot, stats).listen(config.http);
+const server = createServer({ client: bot, memory, stats, model: config.ai.model }).listen(config.http);
 console.log(`Status API on http://${server.server?.hostname}:${server.server?.port}`);
 
 let stopping = false;
