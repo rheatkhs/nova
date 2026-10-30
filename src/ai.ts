@@ -1,3 +1,5 @@
+import type { Tool } from './tools.ts';
+
 export type MessageContent = string | MessagePart[];
 
 export type MessagePart =
@@ -17,30 +19,129 @@ export interface AiOptions {
   apiKey: string | undefined;
   model: string;
   systemPrompt: string;
+  tools?: readonly Tool[];
+  maxToolSteps?: number;
   timeoutMs?: number;
 }
 
-interface CompletionResponse {
-  choices?: { message?: { content?: string | null } }[];
+interface ToolCall {
+  id: string;
+  type: 'function';
+  function: {
+    name: string;
+    arguments: string;
+  };
 }
 
-/** OpenAI-compatible chat client: OpenAI, OpenRouter, Groq, Ollama, LM Studio, ... */
-export function createChat({ baseUrl, apiKey, model, systemPrompt, timeoutMs = 120_000 }: AiOptions): Chat {
+interface ApiMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content?: MessageContent | null;
+  tool_calls?: ToolCall[];
+  tool_call_id?: string;
+}
+
+interface CompletionResponse {
+  choices?: {
+    message?: {
+      content?: string | null;
+      tool_calls?: ToolCall[];
+    };
+  }[];
+}
+
+/** OpenAI-compatible agent client with multi-step tool calling loop. */
+export function createChat({
+  baseUrl,
+  apiKey,
+  model,
+  systemPrompt,
+  tools = [],
+  maxToolSteps = 5,
+  timeoutMs = 120_000,
+}: AiOptions): Chat {
   const url = `${baseUrl.replace(/\/+$/, '')}/chat/completions`;
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
 
-  return async (messages) => {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers,
-      // stream:false explicit: some proxies (e.g. 9router) default to SSE when omitted.
-      body: JSON.stringify({ model, stream: false, messages: [{ role: 'system', content: systemPrompt }, ...messages] }),
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    if (!res.ok) throw new Error(`AI request failed (${res.status}): ${(await res.text()).slice(0, 300)}`);
+  const toolMap = new Map(tools.map((t) => [t.name, t]));
+  const openAiTools =
+    tools.length > 0
+      ? tools.map((t) => ({
+          type: 'function' as const,
+          function: {
+            name: t.name,
+            description: t.description,
+            parameters: t.parameters,
+          },
+        }))
+      : undefined;
 
-    const data = (await res.json()) as CompletionResponse;
-    return data.choices?.[0]?.message?.content?.trim() || '(empty response)';
+  return async (messages) => {
+    const conversation: ApiMessage[] = [
+      { role: 'system', content: systemPrompt },
+      ...messages.map((m) => ({ role: m.role, content: m.content })),
+    ];
+
+    for (let step = 0; step < maxToolSteps; step++) {
+      const body: Record<string, unknown> = {
+        model,
+        stream: false,
+        messages: conversation,
+      };
+      if (openAiTools) {
+        body.tools = openAiTools;
+        body.tool_choice = 'auto';
+      }
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (!res.ok) throw new Error(`AI request failed (${res.status}): ${(await res.text()).slice(0, 300)}`);
+
+      const data = (await res.json()) as CompletionResponse;
+      const msg = data.choices?.[0]?.message;
+      if (!msg) return '(empty response)';
+
+      const toolCalls = msg.tool_calls;
+      if (!toolCalls || toolCalls.length === 0) {
+        return msg.content?.trim() || '(empty response)';
+      }
+
+      conversation.push({
+        role: 'assistant',
+        content: msg.content ?? null,
+        tool_calls: toolCalls,
+      });
+
+      const toolResults = await Promise.all(
+        toolCalls.map(async (call) => {
+          const tool = toolMap.get(call.function.name);
+          let output: string;
+          if (!tool) {
+            output = `Error: unknown tool "${call.function.name}"`;
+          } else {
+            let args: Record<string, unknown> = {};
+            try {
+              args = JSON.parse(call.function.arguments || '{}');
+            } catch {
+              args = {};
+            }
+            try {
+              output = await tool.execute(args);
+            } catch (err) {
+              output = `Tool error: ${err instanceof Error ? err.message : String(err)}`;
+            }
+          }
+          return { role: 'tool' as const, tool_call_id: call.id, content: output };
+        }),
+      );
+
+      conversation.push(...toolResults);
+    }
+
+    return 'Agent reached max tool execution steps.';
   };
 }
