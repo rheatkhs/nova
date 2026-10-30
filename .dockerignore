@@ -1,5 +1,6 @@
 node_modules
 .env
+data/
 .git
 .github
 *.test.ts

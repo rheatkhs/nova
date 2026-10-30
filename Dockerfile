@@ -11,6 +11,9 @@ RUN bun install --frozen-lockfile --production
 COPY tsconfig.json ./
 COPY src ./src
 
+# Data directory for SQLite persistence
+RUN mkdir -p /app/data && chown -R bun:bun /app/data
+
 # Non-root user (provided by oven/bun)
 USER bun
 
