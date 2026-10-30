@@ -78,9 +78,16 @@ async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueue): Pro
   const botId = msg.client.user.id;
   if (msg.author.bot || !msg.channel.isSendable()) return;
 
+  const inActiveThread =
+    msg.channel.isThread() &&
+    (msg.channel.ownerId === botId ||
+      (msg.channel.parentId !== null && deps.aiChannels.has(msg.channel.parentId)) ||
+      deps.memory.get(msg.channelId).length > 0);
+
   const addressed =
     !msg.inGuild() || // DM
     deps.aiChannels.has(msg.channelId) ||
+    inActiveThread ||
     msg.mentions.users.has(botId) ||
     msg.mentions.repliedUser?.id === botId;
   if (!addressed) return;
