@@ -10,6 +10,7 @@ import {
 import type { Chat, ChatMessage } from './ai.ts';
 import { chunk } from './chunk.ts';
 import type { ConversationMemory } from './memory.ts';
+import { createQueue, type TaskQueue } from './queue.ts';
 
 export interface BotStats {
   answered: number;
@@ -40,19 +41,20 @@ export function createBot(deps: BotDeps): Client {
     ],
     partials: [Partials.Channel], // required to receive DMs
   });
+  const queue = createQueue();
 
   client.once(Events.ClientReady, (c) => console.log(`Logged in as ${c.user.tag}`));
-  client.on(Events.MessageCreate, (msg) => void handleMessage(msg, deps).catch(console.error));
+  client.on(Events.MessageCreate, (msg) => void handleMessage(msg, deps, queue).catch(console.error));
   return client;
 }
 
-async function handleMessage(msg: Message, { chat, memory, aiChannels, stats }: BotDeps): Promise<void> {
+async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueue): Promise<void> {
   const botId = msg.client.user.id;
   if (msg.author.bot || !msg.channel.isSendable()) return;
 
   const addressed =
     !msg.inGuild() || // DM
-    aiChannels.has(msg.channelId) ||
+    deps.aiChannels.has(msg.channelId) ||
     msg.mentions.users.has(botId) ||
     msg.mentions.repliedUser?.id === botId;
   if (!addressed) return;
@@ -60,26 +62,28 @@ async function handleMessage(msg: Message, { chat, memory, aiChannels, stats }: 
   const text = msg.content.replace(new RegExp(`<@!?${botId}>`, 'g'), '').trim();
   if (!text) return;
 
-  const question: ChatMessage = { role: 'user', content: `${msg.author.displayName}: ${text}` };
-  let answer: string;
-  try {
-    answer = await withTyping(msg.channel, () => chat([...memory.get(msg.channelId), question]));
-  } catch (err) {
-    stats.failed++;
-    console.error(err);
-    await msg.reply({ content: 'AI request failed, try again later.', allowedMentions: NO_PINGS });
-    return;
-  }
+  const channel = msg.channel;
+  await queue(msg.channelId, async () => {
+    const question: ChatMessage = { role: 'user', content: `${msg.author.displayName}: ${text}` };
+    let answer: string;
+    try {
+      answer = await withTyping(channel, () => deps.chat([...deps.memory.get(msg.channelId), question]));
+    } catch (err) {
+      deps.stats.failed++;
+      console.error(err);
+      await msg.reply({ content: 'AI request failed, try again later.', allowedMentions: NO_PINGS });
+      return;
+    }
 
-  try {
-    await sendAnswer(msg, msg.channel, answer);
-  } catch (err) {
-    stats.failed++; // Discord rejected the reply; replying with an error would likely fail too.
-    throw err;
-  }
-  // Remember only what the user actually saw.
-  memory.append(msg.channelId, question, { role: 'assistant', content: answer });
-  stats.answered++;
+    try {
+      await sendAnswer(msg, channel, answer);
+    } catch (err) {
+      deps.stats.failed++;
+      throw err;
+    }
+    deps.memory.append(msg.channelId, question, { role: 'assistant', content: answer });
+    deps.stats.answered++;
+  });
 }
 
 async function withTyping<T>(channel: SendableChannels, task: () => Promise<T>): Promise<T> {
