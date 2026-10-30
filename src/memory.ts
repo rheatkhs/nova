@@ -20,4 +20,8 @@ export class ConversationMemory {
     const history = [...this.get(key), ...messages];
     this.#history.set(key, this.#limit > 0 ? history.slice(-this.#limit) : []);
   }
+
+  clear(key: string): void {
+    this.#history.delete(key);
+  }
 }

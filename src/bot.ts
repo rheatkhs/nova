@@ -2,7 +2,9 @@ import {
   Client,
   Events,
   GatewayIntentBits,
+  MessageFlags,
   Partials,
+  type Interaction,
   type Message,
   type MessageMentionOptions,
   type SendableChannels,
@@ -46,9 +48,30 @@ export function createBot(deps: BotDeps): Client {
   });
   const queue = createQueue();
 
-  client.once(Events.ClientReady, (c) => console.log(`Logged in as ${c.user.tag}`));
+  client.once(Events.ClientReady, async (c) => {
+    console.log(`Logged in as ${c.user.tag}`);
+    try {
+      await c.application.commands.set([
+        { name: 'reset', description: 'Clear conversation memory for this channel' },
+      ]);
+    } catch (err) {
+      console.error('Failed to register slash commands:', err);
+    }
+  });
   client.on(Events.MessageCreate, (msg) => void handleMessage(msg, deps, queue).catch(console.error));
+  client.on(Events.InteractionCreate, (interaction) => void handleInteraction(interaction, deps).catch(console.error));
   return client;
+}
+
+async function handleInteraction(interaction: Interaction, { memory }: BotDeps): Promise<void> {
+  if (!interaction.isChatInputCommand()) return;
+  if (interaction.commandName === 'reset') {
+    memory.clear(interaction.channelId);
+    await interaction.reply({
+      content: 'Conversation memory cleared for this channel.',
+      flags: MessageFlags.Ephemeral,
+    });
+  }
 }
 
 async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueue): Promise<void> {
