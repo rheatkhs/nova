@@ -12,6 +12,7 @@ export interface ChatMessage {
 }
 
 export interface ChatRunOptions {
+  model?: string;
   systemPrompt?: string;
   extraTools?: readonly Tool[];
   onToolStart?: (toolName: string) => Promise<void> | void;
@@ -89,9 +90,10 @@ export function createChat({
       ...messages.map((m) => ({ role: m.role, content: m.content })),
     ];
 
+    const activeModel = options?.model || model;
     for (let step = 0; step < maxToolSteps; step++) {
       const body: Record<string, unknown> = {
-        model,
+        model: activeModel,
         stream: false,
         messages: conversation,
       };

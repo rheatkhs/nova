@@ -57,6 +57,33 @@ test('createChat allows overriding systemPrompt per-call', async () => {
   }
 });
 
+test('createChat allows overriding model per-call', async () => {
+  let receivedModel = '';
+  const server = Bun.serve({
+    port: 3943,
+    async fetch(req) {
+      const body = (await req.json()) as { model: string };
+      receivedModel = body.model;
+      return Response.json({
+        choices: [{ message: { role: 'assistant', content: 'hello' } }],
+      });
+    },
+  });
+
+  try {
+    const chat = createChat({
+      baseUrl: 'http://127.0.0.1:3943/v1',
+      apiKey: undefined,
+      model: 'default-model',
+      systemPrompt: 'sys',
+    });
+    await chat([{ role: 'user', content: 'hi' }], { model: 'custom-model' });
+    expect(receivedModel).toBe('custom-model');
+  } finally {
+    server.stop();
+  }
+});
+
 test('createChat executes tool call and returns final reply', async () => {
   let step = 0;
   const server = Bun.serve({

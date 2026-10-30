@@ -67,6 +67,18 @@ export function createBot(deps: BotDeps): Client {
             },
           ],
         },
+        {
+          name: 'model',
+          description: 'View, set, or clear custom AI model for this channel',
+          options: [
+            {
+              name: 'name',
+              description: 'Model identifier (e.g. ag/claude-sonnet-5-5, leave empty to view, type "reset" to clear)',
+              type: 3, // ApplicationCommandOptionType.String
+              required: false,
+            },
+          ],
+        },
       ]);
     } catch (err) {
       console.error('Failed to register slash commands:', err);
@@ -108,6 +120,31 @@ async function handleInteraction(interaction: Interaction, { memory }: BotDeps):
     memory.setPrompt(interaction.channelId, text);
     await interaction.reply({
       content: `Custom channel prompt set: "${text}"`,
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+  if (interaction.commandName === 'model') {
+    const name = interaction.options.getString('name')?.trim();
+    if (!name) {
+      const current = memory.getModel(interaction.channelId);
+      await interaction.reply({
+        content: current ? `Channel model: \`${current}\`` : 'No custom model set for this channel (using global default).',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    if (name.toLowerCase() === 'reset') {
+      memory.clearModel(interaction.channelId);
+      await interaction.reply({
+        content: 'Custom channel model cleared (reverted to global default).',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    memory.setModel(interaction.channelId, name);
+    await interaction.reply({
+      content: `Custom channel model set to: \`${name}\``,
       flags: MessageFlags.Ephemeral,
     });
   }
@@ -171,8 +208,10 @@ async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueue): Pro
     try {
       const channelTool = createChannelHistoryTool(channel);
       const channelPrompt = deps.memory.getPrompt(msg.channelId) ?? undefined;
+      const channelModel = deps.memory.getModel(msg.channelId) ?? undefined;
       answer = await withTyping(channel, () =>
         deps.chat([...deps.memory.get(msg.channelId), question], {
+          model: channelModel,
           systemPrompt: channelPrompt,
           extraTools: [channelTool],
           onToolStart: (tool) => {

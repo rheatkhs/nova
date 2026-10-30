@@ -1,11 +1,11 @@
 # Nova
 
-AI agent Discord bot. Answers when mentioned, replied to, DMed, in configured channels, or in active threads. Remembers recent messages per channel/thread; use `/reset` to clear memory, `/prompt` to set per-channel personas.
+AI agent Discord bot. Answers when mentioned, replied to, DMed, in configured channels, or in active threads. Remembers recent messages per channel/thread; use `/reset` to clear memory, `/prompt` to set per-channel personas, and `/model` to switch models per channel.
 
 ## Setup
 
 1. Create an app at https://discord.com/developers/applications. In **Bot**, copy the token and enable **Message Content Intent**.
-2. Invite the bot: **OAuth2 > URL Generator**, scopes `bot` and `applications.commands` (for `/reset` and `/prompt`), permissions `Send Messages`, `Read Message History`.
+2. Invite the bot: **OAuth2 > URL Generator**, scopes `bot` and `applications.commands` (for `/reset`, `/prompt`, `/model`), permissions `Send Messages`, `Read Message History`.
 3. `cp .env.example .env` and fill in `DISCORD_TOKEN`, `AI_API_KEY`, and `AI_MODEL`. Any OpenAI-compatible API works, including local Ollama with `AI_BASE_URL=http://localhost:11434/v1`.
 4. `bun install && bun start`
 
