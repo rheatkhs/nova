@@ -190,3 +190,35 @@ test('createChat respects maxToolSteps cutoff', async () => {
     server.stop();
   }
 });
+
+test('createChat retries transient 502 error and succeeds on retry', async () => {
+  let attempts = 0;
+  const server = Bun.serve({
+    port: 3944,
+    fetch() {
+      attempts++;
+      if (attempts === 1) {
+        return new Response('Bad Gateway', { status: 502 });
+      }
+      return Response.json({
+        choices: [{ message: { role: 'assistant', content: 'recovered' } }],
+      });
+    },
+  });
+
+  try {
+    const chat = createChat({
+      baseUrl: 'http://127.0.0.1:3944/v1',
+      apiKey: undefined,
+      model: 'test-model',
+      systemPrompt: 'sys',
+      retries: 1,
+      retryDelayMs: 0,
+    });
+    const reply = await chat([{ role: 'user', content: 'test' }]);
+    expect(reply).toBe('recovered');
+    expect(attempts).toBe(2);
+  } finally {
+    server.stop();
+  }
+});
