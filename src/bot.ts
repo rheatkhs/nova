@@ -1,6 +1,7 @@
 import {
   ActionRowBuilder,
   ActivityType,
+  ApplicationCommandType,
   AttachmentBuilder,
   ButtonBuilder,
   ButtonStyle,
@@ -15,6 +16,7 @@ import {
   type ChatInputCommandInteraction,
   type Interaction,
   type Message,
+  type MessageContextMenuCommandInteraction,
   type MessageMentionOptions,
   type SendableChannels,
 } from 'discord.js';
@@ -158,6 +160,14 @@ export function createBot(deps: BotDeps): Client {
             },
           ],
         },
+        {
+          name: 'Explain with Nova',
+          type: ApplicationCommandType.Message,
+        },
+        {
+          name: 'Summarize with Nova',
+          type: ApplicationCommandType.Message,
+        },
       ]);
     } catch (err) {
       console.error('Failed to register slash commands:', err);
@@ -187,6 +197,10 @@ async function handleInteraction(interaction: Interaction, deps: BotDeps): Promi
     await handleButton(interaction);
     return;
   }
+  if (interaction.isMessageContextMenuCommand()) {
+    await handleMessageContextMenu(interaction, deps);
+    return;
+  }
   if (!interaction.isChatInputCommand()) return;
   if (interaction.commandName === 'help') {
     const text = [
@@ -200,6 +214,7 @@ async function handleInteraction(interaction: Interaction, deps: BotDeps): Promi
       '• `/ask-thread [question]` - Ask and start a dedicated discussion thread',
       '• `/reset [recap]` - Clear conversation history (optional recap summary)',
       '• `/export [format]` - Download channel conversation history (.md or .json)',
+      '• **Right-Click Apps:** Right-click any message → Apps → *Explain with Nova* or *Summarize with Nova*',
       '• `/prompt [text]` - View or set custom system prompt for this channel (admins)',
       '• `/model [name]` - View or switch model for this channel (admins)',
       '• `/temperature [value]` - View or set temperature 0.0-2.0 (admins)',
@@ -514,6 +529,73 @@ async function handleInteraction(interaction: Interaction, deps: BotDeps): Promi
       flags: MessageFlags.Ephemeral,
     });
     return;
+  }
+}
+
+async function handleMessageContextMenu(
+  interaction: MessageContextMenuCommandInteraction,
+  deps: BotDeps,
+): Promise<void> {
+  const target = interaction.targetMessage;
+  const content = target.content.trim();
+  const authorName = target.author.displayName || target.author.username;
+
+  if (!content && target.attachments.size === 0) {
+    await interaction.reply({
+      content: 'This message does not contain text or readable attachments.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  if (!deps.rateLimiter.check(interaction.user.id)) {
+    await interaction.reply({
+      content: '⏳ You are sending requests too quickly. Please wait a moment.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  const isExplain = interaction.commandName === 'Explain with Nova';
+  const instruction = isExplain
+    ? `Explain this message by ${authorName} clearly and concisely:`
+    : `Summarize the key points of this message by ${authorName}:`;
+
+  const prompt = `${instruction}\n\n"${content}"`;
+  const q: ChatMessage = { role: 'user', content: prompt };
+
+  const channelPrompt = deps.memory.getPrompt(interaction.channelId) ?? undefined;
+  const channelModel = deps.memory.getModel(interaction.channelId) ?? undefined;
+  const channelTemperature = deps.memory.getTemperature(interaction.channelId) ?? undefined;
+  const channelLanguage = deps.memory.getLanguage(interaction.channelId) ?? undefined;
+
+  try {
+    const t0 = Date.now();
+    const answer = await deps.chat([q], {
+      model: channelModel,
+      systemPrompt: channelPrompt,
+      temperature: channelTemperature,
+      language: channelLanguage,
+    });
+    deps.stats.lastResponseMs = Date.now() - t0;
+    deps.stats.answered++;
+    deps.stats.consecutiveFailures = 0;
+
+    const parts = chunk(answer);
+    await interaction.editReply({
+      content: `**${isExplain ? 'Explanation' : 'Summary'}:**\n${parts[0] ?? ''}`,
+      allowedMentions: NO_PINGS,
+    });
+  } catch (err) {
+    deps.stats.failed++;
+    deps.stats.consecutiveFailures++;
+    console.error(err);
+    await interaction.editReply({
+      content: 'AI request failed, try again later.',
+      allowedMentions: NO_PINGS,
+    });
   }
 }
 
