@@ -132,7 +132,8 @@ export function createChat({
 
       const toolCalls = msg.tool_calls;
       if (!toolCalls || toolCalls.length === 0) {
-        return msg.content?.trim() || '(empty response)';
+        const raw = msg.content?.trim() || '(empty response)';
+        return sanitizeOutput(raw, activeSystemPrompt);
       }
 
       conversation.push({
@@ -203,4 +204,17 @@ async function fetchWithRetry(
     }
   }
   throw new Error('AI request failed: retry attempts exhausted');
+}
+
+/**
+ * Detects if the model's output leaks the active system prompt verbatim.
+ * Replaces verbatim leaks with a polite privacy refusal.
+ */
+export function sanitizeOutput(output: string, systemPrompt: string): string {
+  const normOut = output.toLowerCase().replace(/\s+/g, ' ');
+  const normSys = systemPrompt.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (normSys.length >= 30 && normOut.includes(normSys)) {
+    return 'I cannot disclose my internal system instructions.';
+  }
+  return output;
 }

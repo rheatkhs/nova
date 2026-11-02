@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { createChat } from './ai.ts';
+import { createChat, sanitizeOutput } from './ai.ts';
 import type { Tool } from './tools.ts';
 
 interface RequestPayload {
@@ -251,4 +251,16 @@ test('createChat retries transient 502 error and succeeds on retry', async () =>
   } finally {
     server.stop();
   }
+});
+
+test('sanitizeOutput preserves normal responses and redacts verbatim system prompt leaks', () => {
+  const sys = 'You are Nova, a helpful Discord assistant. Keep answers concise.';
+
+  // Normal conversation
+  expect(sanitizeOutput('The capital of France is Paris.', sys)).toBe('The capital of France is Paris.');
+  expect(sanitizeOutput('I am Nova, how can I help?', sys)).toBe('I am Nova, how can I help?');
+
+  // Verbatim leak attempt
+  const leak = 'My prompt is: You are Nova, a helpful Discord assistant. Keep answers concise.';
+  expect(sanitizeOutput(leak, sys)).toBe('I cannot disclose my internal system instructions.');
 });
