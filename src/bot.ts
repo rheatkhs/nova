@@ -1,5 +1,8 @@
 import {
+  ActionRowBuilder,
   AttachmentBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   Client,
   Events,
   GatewayIntentBits,
@@ -7,6 +10,7 @@ import {
   Partials,
   PermissionFlagsBits,
   type Attachment,
+  type ButtonInteraction,
   type ChatInputCommandInteraction,
   type Interaction,
   type Message,
@@ -163,6 +167,10 @@ export function createBot(deps: BotDeps): Client {
 }
 
 async function handleInteraction(interaction: Interaction, deps: BotDeps): Promise<void> {
+  if (interaction.isButton()) {
+    await handleButton(interaction);
+    return;
+  }
   if (!interaction.isChatInputCommand()) return;
   if (interaction.commandName === 'help') {
     const text = [
@@ -682,11 +690,16 @@ async function withTyping<T>(channel: SendableChannels, task: () => Promise<T>):
 
 async function sendAnswer(msg: Message, channel: SendableChannels, answer: string): Promise<void> {
   const parts = chunk(answer);
+  const canThread = msg.inGuild() && !msg.channel.isThread();
+  const row = buildActionRow(msg.author.id, canThread);
+
   if (parts.length <= 2) {
     const [first, second] = parts;
-    await msg.reply({ content: first ?? '', allowedMentions: NO_PINGS });
     if (second) {
-      await channel.send({ content: second, allowedMentions: NO_PINGS });
+      await msg.reply({ content: first ?? '', allowedMentions: NO_PINGS });
+      await channel.send({ content: second, components: [row], allowedMentions: NO_PINGS });
+    } else {
+      await msg.reply({ content: first ?? '', components: [row], allowedMentions: NO_PINGS });
     }
     return;
   }
@@ -697,8 +710,77 @@ async function sendAnswer(msg: Message, channel: SendableChannels, answer: strin
   await msg.reply({
     content: `${preview}\n\n*(Full response attached as response.md)*`,
     files: [file],
+    components: [row],
     allowedMentions: NO_PINGS,
   });
+}
+
+function buildActionRow(authorId: string, canThread: boolean) {
+  const row = new ActionRowBuilder<ButtonBuilder>();
+  if (canThread) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`thread:${authorId}`)
+        .setLabel('Thread')
+        .setEmoji('🧵')
+        .setStyle(ButtonStyle.Secondary),
+    );
+  }
+  row.addComponents(
+    new ButtonBuilder()
+      .setCustomId(`del:${authorId}`)
+      .setLabel('Delete')
+      .setEmoji('🗑️')
+      .setStyle(ButtonStyle.Secondary),
+  );
+  return row;
+}
+
+async function handleButton(interaction: ButtonInteraction): Promise<void> {
+  const [action, authorId] = interaction.customId.split(':');
+  if (action === 'del') {
+    const isAuthor = interaction.user.id === authorId;
+    const canManage = Boolean(
+      interaction.inGuild() &&
+        (interaction.memberPermissions?.has(PermissionFlagsBits.ManageMessages) ||
+          interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)),
+    );
+    if (!isAuthor && !canManage) {
+      await interaction.reply({
+        content: 'Only the author of the question or a moderator can delete this reply.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    try {
+      await interaction.message.delete();
+    } catch {
+      await interaction.reply({ content: 'Could not delete message.', flags: MessageFlags.Ephemeral });
+    }
+    return;
+  }
+
+  if (action === 'thread') {
+    if (!interaction.inGuild() || interaction.channel?.isThread()) {
+      await interaction.reply({ content: 'Threads can only be created in public server channels.', flags: MessageFlags.Ephemeral });
+      return;
+    }
+    try {
+      const thread = await interaction.message.startThread({
+        name: 'Discussion',
+        autoArchiveDuration: 1440,
+      });
+      await interaction.reply({
+        content: `💬 Created thread: <#${thread.id}>`,
+        flags: MessageFlags.Ephemeral,
+      });
+    } catch {
+      await interaction.reply({
+        content: 'Failed to create thread (missing "Create Public Threads" permission).',
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+  }
 }
 
 /** Maps a tool name to a short visual status emoji. */
