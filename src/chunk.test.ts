@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { chunk, detectLanguage, tagCodeFences } from './chunk.ts';
-import { extractCodeSnippet, formatFooter, toolLabel } from './bot.ts';
+import { extractCodeSnippet, formatFooter, generateSpeechAudio, toolLabel } from './bot.ts';
 
 test('chunk respects limit and preserves content', () => {
   expect(chunk('')).toEqual([]);
@@ -79,4 +79,23 @@ test('extractCodeSnippet extracts code block and maps file extension', () => {
   const rustSnippet = extractCodeSnippet('```rs\nfn main() {}\n```');
   expect(rustSnippet?.ext).toBe('rs');
   expect(rustSnippet?.code).toBe('fn main() {}');
+});
+
+test('generateSpeechAudio produces an audio buffer', async () => {
+  const server = Bun.serve({
+    port: 3955,
+    fetch() {
+      return new Response(Buffer.from('FAKE_MP3_DATA'), {
+        headers: { 'Content-Type': 'audio/mpeg' },
+      });
+    },
+  });
+
+  try {
+    const buf = await generateSpeechAudio('Hello Discord!', 'http://127.0.0.1:3955/tts');
+    expect(Buffer.isBuffer(buf)).toBe(true);
+    expect(buf.toString()).toBe('FAKE_MP3_DATA');
+  } finally {
+    server.stop();
+  }
 });
