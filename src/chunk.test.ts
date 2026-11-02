@@ -91,16 +91,11 @@ test('generateSpeechAudio produces an audio buffer', async () => {
     },
   });
 
-  // Mock fetch endpoint or test fallback
-  const origFetch = globalThis.fetch;
-  globalThis.fetch = async () => new Response(Buffer.from('FAKE_AUDIO'), { status: 200 });
-
   try {
-    const buf = await generateSpeechAudio('Hello Discord!');
+    const buf = await generateSpeechAudio('Hello Discord!', 'http://127.0.0.1:3955/tts');
     expect(Buffer.isBuffer(buf)).toBe(true);
-    expect(buf.toString()).toBe('FAKE_AUDIO');
+    expect(buf.toString()).toBe('FAKE_MP3_DATA');
   } finally {
-    globalThis.fetch = origFetch;
     server.stop();
   }
 });

@@ -1342,9 +1342,10 @@ export function extractCodeSnippet(text: string): { code: string; ext: string } 
 }
 
 /** Generates MP3 audio buffer from text using zero-key standard TTS. */
-export async function generateSpeechAudio(text: string): Promise<Buffer> {
+export async function generateSpeechAudio(text: string, baseUrl?: string): Promise<Buffer> {
   const clean = text.replace(/[*_#`~>]/g, ' ').replace(/\s+/g, ' ').trim();
-  const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(clean)}&tl=en&client=tw-ob`;
+  const base = baseUrl || 'https://translate.google.com/translate_tts';
+  const url = `${base}?ie=UTF-8&q=${encodeURIComponent(clean)}&tl=en&client=tw-ob`;
   const res = await fetch(url, {
     headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
     signal: AbortSignal.timeout(10_000),
