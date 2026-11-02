@@ -74,6 +74,8 @@ Nova executes tools concurrently during the agent loop (`maxToolSteps = 5`):
 | `wikipedia_search` | 🔍 | Official Wikipedia REST API search for facts, history, people, and concepts |
 | `fetch_page` | 🌐 | Fetches any HTTP/HTTPS URL, strips HTML/scripts, returns sanitized readable text |
 | `render_chart` | 📊 | Generates dark-themed charts (bar, line, pie, doughnut) rendered inline via QuickChart |
+| `render_diagram` | 📐 | Renders architecture, sequence, and flowcharts visually using Mermaid syntax |
+| `render_html` | 💻 | Serves live interactive HTML/CSS/JS sandbox applications via `/view/:id` |
 | `create_poll` | 🗳️ | Generates formatted numbered polls with reaction emojis for voting |
 | `eval_math` | 🔢 | Safe recursive-descent math evaluator (+, -, *, /, %, ^, sqrt, trig, logs, constants) |
 | `get_current_time` | ⏱️ | Real-time UTC timestamp, date, and day of week |
