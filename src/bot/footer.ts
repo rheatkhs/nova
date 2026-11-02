@@ -31,6 +31,8 @@ export function toolEmoji(toolName: string): string {
       return '⏰';
     case 'run_code':
       return '⚡';
+    case 'play_spotify':
+      return '🎶';
     default:
       return '⚙️';
   }

@@ -169,9 +169,7 @@ export async function handleInteraction(interaction: Interaction, deps: BotDeps)
       '• `/prompt [text]` - View or set custom system prompt for this channel (admins)',
       '• `/model [name]` - View or switch model for this channel (admins)',
       '• `/temperature [value]` - View or set temperature 0.0-2.0 (admins)',
-      '• `/language [name]` - View or set preferred channel language (admins)',
-      '',
-      '• `web_search` 🔎, `wikipedia_search` 🔍, `fetch_page` 🌐, `render_chart` 📊, `render_diagram` 📐, `render_html` 💻, `generate_image` 🎨, `create_poll` 🗳️, `create_quiz` 🧠, `create_reminder` ⏰, `test_webhook` 📡, `run_code` ⚡, `eval_math` 🔢, `get_current_time` ⏱️, `read_channel_history` 📜',
+      '• `web_search` 🔎, `wikipedia_search` 🔍, `fetch_page` 🌐, `render_chart` 📊, `render_diagram` 📐, `render_html` 💻, `play_spotify` 🎶, `generate_image` 🎨, `create_poll` 🗳️, `create_quiz` 🧠, `create_reminder` ⏰, `test_webhook` 📡, `run_code` ⚡, `eval_math` 🔢, `get_current_time` ⏱️, `read_channel_history` 📜',
     ].join('\n');
     await interaction.reply({ content: text, flags: MessageFlags.Ephemeral });
     return;
