@@ -1,79 +1,136 @@
 # Nova
 
-AI agent Discord bot. Answers when mentioned, replied to, DMed, in configured channels, or in active threads. Supports image vision, text/code file attachments, tools, and right-click message context menus (*Explain with Nova*, *Summarize with Nova*). Use `/help` for commands guide, `/stats` for live metrics, `/ask-thread` to spawn discussion threads, `/reset` to clear memory, `/export` to download chat history, `/prompt` to set per-channel personas, `/model` to switch models, `/temperature` to adjust creativity, and `/language` to enforce response language per channel.
+High-performance AI agent Discord bot built with [Bun](https://bun.sh), TypeScript, discord.js, and Elysia.
+
+Answers when mentioned, replied to, DMed, in configured channels, or in active threads. Supports multimodal vision analysis, text and code attachments, tool execution, interactive message action buttons, and live slash commands.
+
+---
+
+## Highlights
+
+- **Multi-Step Agent Loop:** Concurrent tool calling with automatic fallback cascade (`AI_FALLBACK_MODEL`), prompt leak protection, and reasoning process expanders (`||💭 Thought: ...||`).
+- **Interactive Discord UI:**
+  - **Action Buttons:** `🧵 Thread` (inline discussion), `📥 Code` (snippet extraction to file), `🔄 Regenerate` (in-place turn re-execution), `📩 Save` (instant DM jump-link), `🗑️ Delete` (author or moderator dismissal).
+  - **Slash Commands & Autocomplete:** Real-time search for models and languages (`/model`, `/language`), modal GUI persona editor (`/prompt`), conversation recaps (`/reset recap:true`), and history exports (`/export`).
+  - **Right-Click Context Menus:** `Apps > Explain with Nova` and `Apps > Summarize with Nova`.
+  - **Rich Reply Footers:** Native Discord subtext displaying active model, round-trip latency (`ms`), and deduplicated tool badges (`🔎 web_search • 📊 render_chart`).
+- **Persistent SQLite Storage:** Backed by `bun:sqlite` with WAL mode, automated startup optimization (`PRAGMA optimize; VACUUM;`), and dynamic token-budget history trimming.
+- **Observability:** Glassmorphism dark-mode web status dashboard on `GET /`, health checks with DB probes on `GET /health`, JSON stats on `GET /stats`, and Prometheus metrics on `GET /metrics`.
+
+---
 
 ## Setup
 
-1. Create an app at https://discord.com/developers/applications. In **Bot**, copy the token and enable **Message Content Intent**.
-2. Invite the bot: **OAuth2 > URL Generator**, scopes `bot` and `applications.commands` (for `/help`, `/stats`, `/ask-thread`, `/reset`, `/export`, `/prompt`, `/model`, `/temperature`, `/language`), permissions `Send Messages`, `Read Message History`, `Create Public Threads`, `Send Messages in Threads`.
-3. `cp .env.example .env` and fill in `DISCORD_TOKEN`, `AI_API_KEY`, and `AI_MODEL`. Any OpenAI-compatible API works, including local Ollama with `AI_BASE_URL=http://localhost:11434/v1`.
-4. `bun install && bun start`
+1. Create a Discord application at https://discord.com/developers/applications. In the **Bot** tab, copy the token and enable **Message Content Intent**.
+2. Invite the bot: **OAuth2 > URL Generator**
+   - **Scopes:** `bot`, `applications.commands`
+   - **Permissions:** `Send Messages`, `Read Message History`, `Create Public Threads`, `Send Messages in Threads`, `Add Reactions`, `Attach Files`
+3. Copy environment configuration:
+   ```bash
+   cp .env.example .env
+   ```
+   Fill in `DISCORD_TOKEN`, `AI_API_KEY`, and `AI_MODEL`. Any OpenAI-compatible API works (e.g. OpenAI, OpenRouter, Groq, 9router, or local Ollama with `AI_BASE_URL=http://localhost:11434/v1`).
+4. Install and run:
+   ```bash
+   bun install
+   bun start
+   ```
 
-Requires [Bun](https://bun.sh) 1.2+ (runs TypeScript and loads `.env` natively).
+---
 
-### Docker
+## Commands & Interaction
+
+### Slash Commands
+| Command | Options | Description |
+|---|---|---|
+| `/help` | — | Display in-Discord user guide, active tools, and command reference |
+| `/stats` | — | View live operational metrics, latency, model, and SQLite counts (Ephemeral) |
+| `/ask-thread` | `question` | Ask a question and automatically spawn a dedicated discussion thread for the answer |
+| `/reset` | `recap` *(bool)* | Clear channel conversation history, with optional 2–3 sentence summary recap |
+| `/export` | `format` *(md/json)* | Download channel conversation history as a formatted Markdown or JSON file |
+| `/prompt` | `text` *(optional)* | View, set, or open Modal GUI editor for custom channel system prompts (Admins) |
+| `/model` | `name` *(optional)* | View, pick from select menu, or autocomplete switch active model per channel (Admins) |
+| `/temperature` | `value` *(0.0–2.0)* | View or adjust AI temperature and creativity level per channel (Admins) |
+| `/language` | `name` *(optional)* | View or autocomplete enforce fixed response language per channel (Admins) |
+
+### Context Menus & Buttons
+- **Right-Click Apps:** Right-click any message $\to$ `Apps` $\to$ `Explain with Nova` or `Summarize with Nova`.
+- **Reply Action Row:**
+  - `🧵 Thread`: Spawns an inline public discussion thread under the answer.
+  - `📥 Code`: Extracts the primary code fence and uploads it as a downloadable source file.
+  - `🔄 Regenerate`: Re-runs the question turn with the model and updates the reply in-place.
+  - `📩 Save`: Sends a copy of the response with message jump-link directly to your private DMs.
+  - `🗑️ Delete`: Deletes the response message (restricted to question author or moderators).
+
+---
+
+## Built-in Agent Tools
+
+Nova executes tools concurrently during the agent loop (`maxToolSteps = 5`):
+
+| Tool | Icon | Purpose |
+|---|:---:|---|
+| `web_search` | 🔎 | Real-time web search via Brave Search API or SearXNG (falls back to Wikipedia if unconfigured) |
+| `wikipedia_search` | 🔍 | Official Wikipedia REST API search for facts, history, people, and concepts |
+| `fetch_page` | 🌐 | Fetches any HTTP/HTTPS URL, strips HTML/scripts, returns sanitized readable text |
+| `render_chart` | 📊 | Generates dark-themed charts (bar, line, pie, doughnut) rendered inline via QuickChart |
+| `create_poll` | 🗳️ | Generates formatted numbered polls with reaction emojis for voting |
+| `eval_math` | 🔢 | Safe recursive-descent math evaluator (+, -, *, /, %, ^, sqrt, trig, logs, constants) |
+| `get_current_time` | ⏱️ | Real-time UTC timestamp, date, and day of week |
+| `read_channel_history` | 📜 | Reads recent chat messages in the active channel (contextual tool) |
+
+---
+
+## Status API & Observability
+
+Elysia HTTP server runs on `HOST:PORT` (default `127.0.0.1:3000`):
+
+| Route | Format | Purpose |
+|---|---|---|
+| `GET /` | HTML | Sleek glassmorphism dark-mode status web dashboard with live auto-refreshing metrics |
+| `GET /health` | JSON | `200 {"ok":true}` when Discord gateway is connected and SQLite is accessible, else `503` |
+| `GET /stats` | JSON | Uptime, server count, gateway ping, active model, latency, and message metrics |
+| `GET /metrics` | Plaintext | Prometheus exposition format metrics for scraping (Prometheus / Grafana / Datadog) |
+
+---
+
+## Docker Deployment
 
 ```bash
 docker build -t nova .
-# Reaching host APIs (like 9router on localhost:20128) needs --network host on Linux:
-docker run -d --name nova --env-file .env --network host nova
+
+# If connecting to host APIs (like 9router on localhost:20128) on Linux:
+docker run -d \
+  --name nova \
+  --env-file .env \
+  --network host \
+  -v $(pwd)/data:/app/data \
+  nova
 ```
 
-## Tools
+---
 
-Nova runs an agent loop (`maxToolSteps = 5`) with built-in tools:
+## Development & Workflow
 
-| Tool | Purpose |
-| --- | --- |
-| `get_current_time` | Returns real-time UTC timestamp, date, and day of week |
-| `eval_math` | Evaluates arithmetic, trigonometry, powers, and roots safely |
-| `wikipedia_search` | Official Wikipedia search API for facts, people, and concepts |
-| `web_search` | Real-time web search via Brave Search API or self-hosted SearXNG |
-| `fetch_page` | Fetches any HTTP/HTTPS URL, strips HTML/scripts, returns text |
-| `render_chart` | Generates visual charts (bar, line, pie, doughnut) rendered inline in Discord |
-| `create_poll` | Generates formatted numbered polls with reaction emojis for voting |
-| `read_channel_history` | Reads recent chat messages in the current Discord channel (contextual tool) |
+Every change lands on `main` through a pull request that passes CI (`bun typecheck`, `bun test`). Direct pushes to `main` are restricted.
 
+```bash
+bun start       # Run the bot
+bun dev         # Run with auto-restart on file change
+bun typecheck   # Strict type check (tsc)
+bun test        # Unit tests
+```
 
-## Status API
-
-Elysia server on `HOST:PORT` (default `127.0.0.1:3000`):
-
-| Route | Response |
-| --- | --- |
-| `GET /` | Sleek dark-mode status web dashboard with live auto-refreshing stat cards |
-| `GET /health` | `200 {"ok":true}` when connected to Discord, else `503` |
-| `GET /stats` | Ready state, uptime, guild count, gateway ping, model name, answered/failed/toolCalls counts, and SQLite memory metrics |
-| `GET /metrics` | Prometheus exposition format metrics for scraping (Prometheus / Grafana / Datadog) |
-
-## Scripts
-
-| Command | Purpose |
-| --- | --- |
-| `bun start` | Run the bot |
-| `bun dev` | Run with auto-restart on file change |
-| `bun typecheck` | Strict type check (`tsc`) |
-| `bun test` | Unit tests |
-
-## Workflow
-
-Every change lands on `main` through a pull request that passes CI (`bun typecheck`, `bun test`). No direct pushes to `main`.
-
-1. Branch from `main`: `git switch main && git pull && git switch -c <type>/<short-name>`.
-2. Commit with [Conventional Commits](https://www.conventionalcommits.org): `feat:`, `fix:`, `ci:`, `docs:`, `refactor:`, `test:`, `chore:`.
-3. Push and open a PR: `git push -u origin HEAD && gh pr create --fill`.
-4. Merge once CI is green: `gh pr merge --squash`. The PR title becomes the commit on `main`; the branch is deleted automatically.
-5. Clean up locally: `git switch main && git pull --prune && git branch -d <branch>`.
-
-## Layout
+### Layout
 
 | File | Role |
-| --- | --- |
-| `src/index.ts` | Wires config, AI client, memory, bot, and status API |
-| `src/config.ts` | Loads and validates env vars |
-| `src/ai.ts` | Multi-step agent loop with tool-calling support |
-| `src/tools.ts` | Built-in tools: `get_current_time`, `wikipedia_search`, `fetch_page` |
-| `src/memory.ts` | Rolling per-channel history backed by SQLite (`bun:sqlite`) |
-| `src/bot.ts` | Discord client and message handling |
-| `src/chunk.ts` | Splits replies to Discord's 2000-char limit |
-| `src/server.ts` | Elysia status API |
+|---|---|
+| `src/index.ts` | Wires configuration, AI client, SQLite memory, bot client, and Elysia API |
+| `src/config.ts` | Loads and validates environment variables |
+| `src/ai.ts` | OpenAI-compatible multi-step agent loop, tool calling, and fallback cascade |
+| `src/tools.ts` | Built-in zero-dependency tools suite |
+| `src/memory.ts` | Rolling per-channel history, persona, and model storage backed by SQLite |
+| `src/bot.ts` | Discord client, message handling, components, modals, and slash commands |
+| `src/chunk.ts` | Splits long replies, preserves code fences, and auto-detects code languages |
+| `src/server.ts` | Elysia status, health probe, and metrics endpoints |
+| `src/dashboard.ts`| Dark-mode glassmorphism web dashboard HTML renderer |
