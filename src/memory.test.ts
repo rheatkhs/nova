@@ -23,6 +23,18 @@ test('clear empties specified key only', () => {
   mem.close();
 });
 
+test('replaceLastAssistant updates the most recent assistant answer in-place', () => {
+  const mem = new ConversationMemory(10, ':memory:');
+  mem.append('c1', { role: 'user', content: 'hello' }, { role: 'assistant', content: 'first draft' });
+  mem.replaceLastAssistant('c1', 'second draft');
+
+  const history = mem.get('c1');
+  expect(history.length).toBe(2);
+  expect(history[0]?.content).toBe('hello');
+  expect(history[1]?.content).toBe('second draft');
+  mem.close();
+});
+
 test('persists history across instance restarts when backed by file', () => {
   const testDb = 'data/test-restart.db';
   try {

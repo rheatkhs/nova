@@ -26,6 +26,7 @@ export class ConversationMemory {
   readonly #getLanguageStmt: Statement<{ language: string }, [string]>;
   readonly #setLanguageStmt: Statement<void, [string, string, number]>;
   readonly #clearLanguageStmt: Statement<void, [string]>;
+  readonly #replaceAssistantStmt: Statement<void, [string, string]>;
 
   constructor(limit: number, path = 'data/nova.db') {
     this.#limit = limit;
@@ -105,6 +106,11 @@ export class ConversationMemory {
       ON CONFLICT(channel_id) DO UPDATE SET language = excluded.language, updated_at = excluded.updated_at
     `);
     this.#clearLanguageStmt = this.#db.prepare('DELETE FROM channel_languages WHERE channel_id = ?');
+    this.#replaceAssistantStmt = this.#db.prepare(`
+      UPDATE messages SET content = ? WHERE id = (
+        SELECT id FROM messages WHERE channel_id = ? AND role = 'assistant' ORDER BY id DESC LIMIT 1
+      )
+    `);
   }
 
   /**
@@ -134,6 +140,10 @@ export class ConversationMemory {
   }
   clear(key: string): void {
     this.#clearStmt.run(key);
+  }
+
+  replaceLastAssistant(key: string, content: string): void {
+    this.#replaceAssistantStmt.run(content, key);
   }
 
   getPrompt(channelId: string): string | null {
