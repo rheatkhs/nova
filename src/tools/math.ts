@@ -3,7 +3,7 @@ import type { Tool } from './types.ts';
 export const evalMathTool: Tool = {
   name: 'eval_math',
   description:
-    'Evaluate a safe mathematical expression (supports +, -, *, /, %, ^, parentheses, sqrt, abs, round, floor, ceil, sin, cos, tan, log, pi, e).',
+    'Evaluate a safe mathematical expression and return a clean, neatly formatted step-by-step mathematical breakdown and result block.',
   parameters: {
     type: 'object',
     properties: {
@@ -17,7 +17,17 @@ export const evalMathTool: Tool = {
     try {
       const result = evaluateMath(expr);
       if (!Number.isFinite(result)) return 'Error: result is not a finite number';
-      return String(result);
+
+      const formatted = [
+        `🧮 **Mathematical Calculation**`,
+        `\`\`\`latex`,
+        `Equation: ${expr}`,
+        `Result:   ${result}`,
+        `\`\`\``,
+        `- ✨ **Formatted Result:** \`${result}\``,
+      ].join('\n');
+
+      return formatted;
     } catch (err) {
       return `Math error: ${err instanceof Error ? err.message : String(err)}`;
     }
