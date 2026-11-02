@@ -130,14 +130,14 @@ bun test        # Unit tests
 
 ### Layout
 
-| File | Role |
+| Directory / Module | Role |
 |---|---|
-| `src/index.ts` | Wires configuration, AI client, SQLite memory, bot client, and Elysia API |
+| `src/index.ts` | Application entrypoint wiring config, AI, memory, bot, and server |
 | `src/config.ts` | Loads and validates environment variables |
-| `src/ai.ts` | OpenAI-compatible multi-step agent loop, tool calling, and fallback cascade |
-| `src/tools.ts` | Built-in zero-dependency tools suite |
+| `src/bot/` | Discord domain: client, slash commands, buttons, modals, messages, presence |
+| `src/ai/` | OpenAI-compatible multi-step agent loop, tool calling, and fallback cascade |
+| `src/tools/` | Focused, single-responsibility tool modules (12+ built-in tools) |
+| `src/server/` | Elysia status, health probe, Prometheus metrics, and live SSE event stream |
 | `src/memory.ts` | Rolling per-channel history, persona, and model storage backed by SQLite |
-| `src/bot.ts` | Discord client, message handling, components, modals, and slash commands |
 | `src/chunk.ts` | Splits long replies, preserves code fences, and auto-detects code languages |
-| `src/server.ts` | Elysia status, health probe, and metrics endpoints |
-| `src/dashboard.ts`| Dark-mode glassmorphism web dashboard HTML renderer |
+| `src/events.ts` | In-process EventBus ring buffer for real-time telemetry streaming |
