@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { createChannelHistoryTool, createPollTool, evalMathTool, evaluateMath, fetchPageTool, getCurrentTimeTool, getSandboxSnippet, renderChartTool, renderHtmlTool, webSearchTool, wikipediaSearchTool } from './tools.ts';
+import { createChannelHistoryTool, createPollTool, evalMathTool, evaluateMath, fetchPageTool, getCurrentTimeTool, getSandboxSnippet, renderChartTool, renderDiagramTool, renderHtmlTool, webSearchTool, wikipediaSearchTool } from './tools.ts';
 
 test('get_current_time returns valid UTC date info', async () => {
   const result = JSON.parse(await getCurrentTimeTool.execute({}));
@@ -182,4 +182,19 @@ test('renderHtmlTool generates live preview URL and stores snippet in sandbox', 
   expect(snippet?.title).toBe('Counter App');
   expect(snippet?.html).toContain('<button onclick="alert(1)">Click</button>');
   expect(snippet?.html).toContain('<!DOCTYPE html>');
+});
+
+test('renderDiagramTool validates syntax and strips code fences', async () => {
+  expect(await renderDiagramTool.execute({})).toBe('Error: syntax is required');
+  expect(await renderDiagramTool.execute({ syntax: '   ' })).toBe('Error: syntax is required');
+
+  const output = await renderDiagramTool.execute({
+    title: 'Architecture',
+    syntax: '```mermaid\ngraph TD\n  Client --> Server\n```',
+  });
+
+  expect(output).toContain('[Diagram rendered: Architecture]');
+  expect(output).toContain('https://mermaid.ink/img/');
+  expect(output).toContain('bgColor=181a20');
+  expect(output).toContain('```mermaid\ngraph TD\n  Client --> Server\n```');
 });
