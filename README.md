@@ -94,6 +94,7 @@ Elysia HTTP server runs on `HOST:PORT` (default `127.0.0.1:3000`):
 | `GET /health` | JSON | `200 {"ok":true}` when Discord gateway is connected and SQLite is accessible, else `503` |
 | `GET /stats` | JSON | Uptime, server count, gateway ping, active model, latency, and message metrics |
 | `GET /metrics` | Plaintext | Prometheus exposition format metrics for scraping (Prometheus / Grafana / Datadog) |
+| `GET /events` | SSE Stream | Live Server-Sent Events stream of real-time bot operations, tools, and logs |
 
 ---
 

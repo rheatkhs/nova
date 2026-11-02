@@ -152,9 +152,20 @@ export function renderDashboard(data: DashboardData): string {
       </div>
     </div>
 
+    <div class="card" style="margin-bottom:2rem;padding:1rem;">
+      <div class="label" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>Live Event Stream (SSE)</span>
+        <span style="color:var(--green);font-size:0.7rem;">● LIVE</span>
+      </div>
+      <div id="terminal" style="font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:0.8rem;background:rgba(0,0,0,0.5);border:1px solid var(--border);border-radius:6px;padding:0.75rem;height:160px;overflow-y:auto;line-height:1.45;color:#e6edf3;">
+        <div style="color:var(--muted)">Connecting to /events stream...</div>
+      </div>
+    </div>
+
     <footer>
       <div>Nova AI Assistant • Realtime Dashboard</div>
       <div style="display:flex;gap:1.25rem;">
+        <a href="/events">/events</a>
         <a href="/stats">/stats</a>
         <a href="/metrics">/metrics</a>
         <a href="/health">/health</a>
@@ -176,6 +187,21 @@ export function renderDashboard(data: DashboardData): string {
         document.getElementById('messages').innerText = d.memory.totalMessages;
       } catch {}
     }, 5000);
+
+    // SSE Live Stream Connection
+    const term = document.getElementById('terminal');
+    const es = new EventSource('/events');
+    es.onopen = () => { term.innerHTML = ''; };
+    es.onmessage = (e) => {
+      try {
+        const ev = JSON.parse(e.data);
+        const color = ev.type === 'error' ? 'var(--red)' : ev.type === 'tool' ? 'var(--accent)' : 'var(--text)';
+        const line = document.createElement('div');
+        line.innerHTML = '<span style="color:var(--muted)">[' + ev.time + ']</span> <span style="color:' + color + '">[' + ev.type.toUpperCase() + ']</span> ' + ev.message;
+        term.appendChild(line);
+        term.scrollTop = term.scrollHeight;
+      } catch {}
+    };
   </script>
 </body>
 </html>`;

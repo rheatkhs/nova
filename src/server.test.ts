@@ -3,6 +3,7 @@ import type { Client } from 'discord.js';
 import { createServer } from './server.ts';
 import { ConversationMemory } from './memory.ts';
 import { renderHtmlTool } from './tools.ts';
+import { events } from './events.ts';
 
 interface StatsResponse {
   ready: boolean;
@@ -181,5 +182,29 @@ test('GET /view/:id serves sandbox snippet HTML and 404 when missing', async () 
   expect(resFound.status).toBe(200);
   expect(resFound.headers.get('Content-Type')).toContain('text/html');
   expect(await resFound.text()).toContain('<h1>Pong</h1>');
+  memory.close();
+});
+
+test('GET /events streams SSE events', async () => {
+  const memory = new ConversationMemory(10, ':memory:');
+  const app = createServer({
+    client: mockClient(true),
+    memory,
+    stats: { answered: 0, failed: 0, toolCalls: 0, consecutiveFailures: 0, lastResponseMs: 0 },
+    model: 'test-model',
+  });
+
+  events.broadcast('info', 'Daemon booted successfully');
+  const res = await app.handle(new Request('http://localhost/events'));
+  expect(res.status).toBe(200);
+  expect(res.headers.get('Content-Type')).toBe('text/event-stream');
+
+  const reader = res.body?.getReader();
+  expect(reader).toBeDefined();
+  const chunk = await reader!.read();
+  const text = new TextDecoder().decode(chunk.value);
+  expect(text).toContain('data: ');
+  expect(text).toContain('"type":');
+  reader!.cancel();
   memory.close();
 });
