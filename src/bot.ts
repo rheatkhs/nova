@@ -17,6 +17,7 @@ import {
   TextInputBuilder,
   TextInputStyle,
   type Attachment,
+  type AutocompleteInteraction,
   type ButtonInteraction,
   type ChatInputCommandInteraction,
   type Interaction,
@@ -137,9 +138,10 @@ export function createBot(deps: BotDeps): Client {
           options: [
             {
               name: 'name',
-              description: 'Model identifier (e.g. ag/claude-sonnet-5-5, leave empty to view, type "reset" to clear)',
+              description: 'Model identifier (leave empty for dropdown menu, type "reset" to clear)',
               type: 3, // ApplicationCommandOptionType.String
               required: false,
+              autocomplete: true,
             },
           ],
         },
@@ -164,6 +166,7 @@ export function createBot(deps: BotDeps): Client {
               description: 'Language name (e.g. Vietnamese, English, Japanese, or "reset" to clear)',
               type: 3, // ApplicationCommandOptionType.String
               required: false,
+              autocomplete: true,
             },
           ],
         },
@@ -200,6 +203,10 @@ export function updatePresence(client: Client, stats: BotStats): void {
 }
 
 async function handleInteraction(interaction: Interaction, deps: BotDeps): Promise<void> {
+  if (interaction.isAutocomplete()) {
+    await handleAutocomplete(interaction);
+    return;
+  }
   if (interaction.isButton()) {
     await handleButton(interaction, deps);
     return;
@@ -611,6 +618,46 @@ async function handleInteraction(interaction: Interaction, deps: BotDeps): Promi
       content: `Custom channel language set to: \`${langStr}\``,
       flags: MessageFlags.Ephemeral,
     });
+    return;
+  }
+}
+
+const SUGGESTED_MODELS = [
+  { name: 'Gemini 3.8 Flash (Fast & concise)', value: 'ag/gemini-3.8-flash' },
+  { name: 'Claude Sonnet 5.5 (Coding & reasoning)', value: 'ag/claude-sonnet-5-5' },
+  { name: 'Claude Opus 5.5 (Deep complex tasks)', value: 'ag/claude-opus-5-5' },
+  { name: 'GPT-4o Mini (OpenAI general)', value: 'gpt-4o-mini' },
+  { name: 'Reset to Default (from .env)', value: 'reset' },
+];
+
+const SUGGESTED_LANGUAGES = [
+  { name: 'English', value: 'English' },
+  { name: 'Vietnamese (Tiếng Việt)', value: 'Vietnamese' },
+  { name: 'Japanese (日本語)', value: 'Japanese' },
+  { name: 'Spanish (Español)', value: 'Spanish' },
+  { name: 'French (Français)', value: 'French' },
+  { name: 'German (Deutsch)', value: 'German' },
+  { name: 'Chinese (中文)', value: 'Chinese' },
+  { name: 'Reset (Conversation language)', value: 'reset' },
+];
+
+async function handleAutocomplete(interaction: AutocompleteInteraction): Promise<void> {
+  const focused = interaction.options.getFocused(true);
+  const query = focused.value.toLowerCase().trim();
+
+  if (interaction.commandName === 'model') {
+    const filtered = SUGGESTED_MODELS.filter(
+      (m) => m.name.toLowerCase().includes(query) || m.value.toLowerCase().includes(query),
+    );
+    await interaction.respond(filtered.slice(0, 25));
+    return;
+  }
+
+  if (interaction.commandName === 'language') {
+    const filtered = SUGGESTED_LANGUAGES.filter(
+      (l) => l.name.toLowerCase().includes(query) || l.value.toLowerCase().includes(query),
+    );
+    await interaction.respond(filtered.slice(0, 25));
     return;
   }
 }
