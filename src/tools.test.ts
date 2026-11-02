@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { createChannelHistoryTool, createPollTool, evalMathTool, evaluateMath, fetchPageTool, getCurrentTimeTool, renderChartTool, webSearchTool, wikipediaSearchTool } from './tools.ts';
+import { createChannelHistoryTool, createPollTool, evalMathTool, evaluateMath, fetchPageTool, getCurrentTimeTool, getSandboxSnippet, renderChartTool, renderHtmlTool, webSearchTool, wikipediaSearchTool } from './tools.ts';
 
 test('get_current_time returns valid UTC date info', async () => {
   const result = JSON.parse(await getCurrentTimeTool.execute({}));
@@ -157,4 +157,29 @@ test('createPollTool formats clean numbered poll block', async () => {
   expect(poll).toContain('2️⃣ Node.js');
   expect(poll).toContain('3️⃣ Deno');
   expect(poll).toContain('React below with the corresponding number emoji to vote!');
+});
+
+test('renderHtmlTool validates html parameter', async () => {
+  expect(await renderHtmlTool.execute({})).toBe('Error: html content is required');
+  expect(await renderHtmlTool.execute({ html: '   ' })).toBe('Error: html content is required');
+});
+
+test('renderHtmlTool generates live preview URL and stores snippet in sandbox', async () => {
+  const output = await renderHtmlTool.execute({
+    title: 'Counter App',
+    html: '<button onclick="alert(1)">Click</button>',
+  });
+
+  expect(output).toContain('[Live Webpage Preview: Counter App]');
+  expect(output).toContain('/view/');
+
+  const idMatch = output.match(/\/view\/([a-z0-9]+)/);
+  expect(idMatch).not.toBeNull();
+  const id = idMatch![1]!;
+
+  const snippet = getSandboxSnippet(id);
+  expect(snippet).toBeDefined();
+  expect(snippet?.title).toBe('Counter App');
+  expect(snippet?.html).toContain('<button onclick="alert(1)">Click</button>');
+  expect(snippet?.html).toContain('<!DOCTYPE html>');
 });
