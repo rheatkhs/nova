@@ -1,6 +1,6 @@
 # Nova
 
-AI agent Discord bot. Answers when mentioned, replied to, DMed, in configured channels, or in active threads. Supports image vision, text/code file attachments, and tools. Use `/help` for commands guide, `/stats` for live metrics, `/ask-thread` to spawn discussion threads, `/reset` to clear memory, `/export` to download chat history, `/prompt` to set per-channel personas, `/model` to switch models, `/temperature` to adjust creativity, and `/language` to enforce response language per channel.
+AI agent Discord bot. Answers when mentioned, replied to, DMed, in configured channels, or in active threads. Supports image vision, text/code file attachments, tools, and right-click message context menus (*Explain with Nova*, *Summarize with Nova*). Use `/help` for commands guide, `/stats` for live metrics, `/ask-thread` to spawn discussion threads, `/reset` to clear memory, `/export` to download chat history, `/prompt` to set per-channel personas, `/model` to switch models, `/temperature` to adjust creativity, and `/language` to enforce response language per channel.
 
 ## Setup
 
