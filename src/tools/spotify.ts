@@ -68,34 +68,41 @@ export function createPlaySpotifyTool(getContext?: () => { message?: Message }):
         const guild = msg?.guild;
 
         if (targetVoiceId && guild && track.previewUrl) {
-          try {
-            const connection = joinVoiceChannel({
-              channelId: String(targetVoiceId),
-              guildId: String(guild.id),
-              adapterCreator: guild.voiceAdapterCreator as unknown as DiscordGatewayAdapterCreator,
-            });
+          // Fire voice connection asynchronously to avoid blocking agent tool timeout
+          void (async () => {
+            try {
+              const connection = joinVoiceChannel({
+                channelId: String(targetVoiceId),
+                guildId: String(guild.id),
+                adapterCreator: guild.voiceAdapterCreator as unknown as DiscordGatewayAdapterCreator,
+              });
 
-            await entersState(connection, VoiceConnectionStatus.Ready, 20_000);
+              await entersState(connection, VoiceConnectionStatus.Ready, 20_000);
 
-            const player = createAudioPlayer();
-            const resource = createAudioResource(track.previewUrl, { inlineVolume: true });
-            resource.volume?.setVolume(1.0);
-            player.play(resource);
-            connection.subscribe(player);
+              const player = createAudioPlayer();
+              if (track.previewUrl) {
+                const resource = createAudioResource(track.previewUrl, { inlineVolume: true });
+                resource.volume?.setVolume(1.0);
+                player.play(resource);
+                connection.subscribe(player);
+              }
 
-            player.on('error', (error) => {
-              console.error('Audio player error:', error);
-            });
-            player.on(AudioPlayerStatus.Idle, () => {
-              try {
-                connection.destroy();
-              } catch {}
-            });
+              player.on('error', (error) => {
+                console.error('Audio player error:', error);
+              });
+              player.on(AudioPlayerStatus.Idle, () => {
+                try {
+                  connection.destroy();
+                } catch {}
+              });
+            } catch (err) {
+              console.error('Background voice stream error:', err);
+            }
+          })();
 
-            voiceStatus = `🔊 Connected to voice channel & streaming audio preview!`;
-          } catch (voiceErr) {
-            voiceStatus = `⚠️ Voice join failed: ${voiceErr instanceof Error ? voiceErr.message : String(voiceErr)}`;
-          }
+          voiceStatus = `🔊 Connecting to voice channel & streaming audio preview...`;
+        } else {
+          voiceStatus = `🔗 Audio preview stream link ready (join voice channel to auto-stream).`;
         }
 
         const lines = [
