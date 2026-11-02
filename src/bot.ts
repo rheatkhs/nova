@@ -24,6 +24,7 @@ export interface BotStats {
   answered: number;
   failed: number;
   toolCalls: number;
+  consecutiveFailures: number;
 }
 
 export interface BotDeps {
@@ -172,7 +173,7 @@ async function handleInteraction(interaction: Interaction, deps: BotDeps): Promi
       `• **Servers:** ${interaction.client.guilds.cache.size}`,
       `• **Active Model:** \`${channelModel ?? 'global default'}\``,
       `• **Questions Answered:** ${deps.stats.answered}`,
-      `• **Questions Failed:** ${deps.stats.failed}`,
+      `• **Questions Failed:** ${deps.stats.failed}${deps.stats.consecutiveFailures > 0 ? ` (${deps.stats.consecutiveFailures} consecutive)` : ''}`,
       `• **Tool Executions:** ${deps.stats.toolCalls}`,
       `• **SQLite Memory:** ${memStats.totalMessages} messages across ${memStats.channels} channels`,
     ];
@@ -225,6 +226,7 @@ async function handleInteraction(interaction: Interaction, deps: BotDeps): Promi
           await threadTarget.send({ content: part, allowedMentions: NO_PINGS });
         }
         deps.stats.answered++;
+        deps.stats.consecutiveFailures = 0;
       } else {
         const channelPrompt = deps.memory.getPrompt(interaction.channelId) ?? undefined;
         const channelModel = deps.memory.getModel(interaction.channelId) ?? undefined;
@@ -237,9 +239,11 @@ async function handleInteraction(interaction: Interaction, deps: BotDeps): Promi
         deps.memory.append(interaction.channelId, q, { role: 'assistant', content: answer });
         await interaction.editReply({ content: answer.slice(0, 2000), allowedMentions: NO_PINGS });
         deps.stats.answered++;
+        deps.stats.consecutiveFailures = 0;
       }
     } catch (err) {
       deps.stats.failed++;
+      deps.stats.consecutiveFailures++;
       console.error(err);
       await interaction.editReply({ content: 'AI request failed, try again later.', allowedMentions: NO_PINGS });
     }
@@ -497,6 +501,7 @@ async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueue): Pro
       );
     } catch (err) {
       deps.stats.failed++;
+      deps.stats.consecutiveFailures++;
       console.error(err);
       await msg.reply({ content: 'AI request failed, try again later.', allowedMentions: NO_PINGS });
       return;
@@ -506,10 +511,12 @@ async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueue): Pro
       await sendAnswer(msg, channel, answer);
     } catch (err) {
       deps.stats.failed++;
+      deps.stats.consecutiveFailures++;
       throw err;
     }
     deps.memory.append(msg.channelId, memoryQuestion, { role: 'assistant', content: answer });
     deps.stats.answered++;
+    deps.stats.consecutiveFailures = 0;
   });
 }
 
