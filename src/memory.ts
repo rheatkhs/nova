@@ -20,6 +20,9 @@ export class ConversationMemory {
   readonly #getModelStmt: Statement<{ model: string }, [string]>;
   readonly #setModelStmt: Statement<void, [string, string, number]>;
   readonly #clearModelStmt: Statement<void, [string]>;
+  readonly #getTemperatureStmt: Statement<{ temperature: number }, [string]>;
+  readonly #setTemperatureStmt: Statement<void, [string, number, number]>;
+  readonly #clearTemperatureStmt: Statement<void, [string]>;
 
   constructor(limit: number, path = 'data/nova.db') {
     this.#limit = limit;
@@ -47,6 +50,11 @@ export class ConversationMemory {
       CREATE TABLE IF NOT EXISTS channel_models (
         channel_id TEXT PRIMARY KEY,
         model TEXT NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS channel_temperatures (
+        channel_id TEXT PRIMARY KEY,
+        temperature REAL NOT NULL,
         updated_at INTEGER NOT NULL
       );
     `);
@@ -77,6 +85,12 @@ export class ConversationMemory {
       ON CONFLICT(channel_id) DO UPDATE SET model = excluded.model, updated_at = excluded.updated_at
     `);
     this.#clearModelStmt = this.#db.prepare('DELETE FROM channel_models WHERE channel_id = ?');
+    this.#getTemperatureStmt = this.#db.prepare('SELECT temperature FROM channel_temperatures WHERE channel_id = ?');
+    this.#setTemperatureStmt = this.#db.prepare(`
+      INSERT INTO channel_temperatures (channel_id, temperature, updated_at) VALUES (?, ?, ?)
+      ON CONFLICT(channel_id) DO UPDATE SET temperature = excluded.temperature, updated_at = excluded.updated_at
+    `);
+    this.#clearTemperatureStmt = this.#db.prepare('DELETE FROM channel_temperatures WHERE channel_id = ?');
   }
 
   /**
@@ -134,6 +148,19 @@ export class ConversationMemory {
     this.#clearModelStmt.run(channelId);
   }
 
+
+  getTemperature(channelId: string): number | null {
+    const row = this.#getTemperatureStmt.get(channelId);
+    return row?.temperature ?? null;
+  }
+
+  setTemperature(channelId: string, temperature: number): void {
+    this.#setTemperatureStmt.run(channelId, temperature, Date.now());
+  }
+
+  clearTemperature(channelId: string): void {
+    this.#clearTemperatureStmt.run(channelId);
+  }
   stats(): { totalMessages: number; channels: number } {
     const row = this.#db
       .query('SELECT count(*) AS total, count(DISTINCT channel_id) AS channels FROM messages')

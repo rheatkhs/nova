@@ -103,6 +103,18 @@ export function createBot(deps: BotDeps): Client {
             },
           ],
         },
+        {
+          name: 'temperature',
+          description: 'View, set, or clear AI temperature (0.0 to 2.0) for this channel',
+          options: [
+            {
+              name: 'value',
+              description: 'Creativity value (0.0 = deterministic/coding, 1.0 = creative, "reset" to clear)',
+              type: 3, // ApplicationCommandOptionType.String
+              required: false,
+            },
+          ],
+        },
       ]);
     } catch (err) {
       console.error('Failed to register slash commands:', err);
@@ -128,7 +140,7 @@ async function handleInteraction(interaction: Interaction, deps: BotDeps): Promi
       '• `/export [format]` - Download channel conversation history (.md or .json)',
       '• `/prompt [text]` - View or set custom system prompt for this channel (admins)',
       '• `/model [name]` - View or switch model for this channel (admins)',
-      '',
+      '• `/temperature [value]` - View or set temperature 0.0-2.0 (admins)',
       '**Built-in Tools:**',
       '• `web_search` 🔎, `wikipedia_search` 🔍, `fetch_page` 🌐, `eval_math` 🔢, `get_current_time` ⏱️, `read_channel_history` 📜',
     ].join('\n');
@@ -261,6 +273,49 @@ async function handleInteraction(interaction: Interaction, deps: BotDeps): Promi
       flags: MessageFlags.Ephemeral,
     });
   }
+  if (interaction.commandName === 'temperature') {
+    const valStr = interaction.options.getString('value')?.trim();
+    if (!valStr) {
+      const current = deps.memory.getTemperature(interaction.channelId);
+      await interaction.reply({
+        content:
+          current !== null
+            ? `Channel temperature: \`${current.toFixed(2)}\``
+            : 'No custom temperature set for this channel (using model default).',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    if (!hasManagePermission(interaction)) {
+      await interaction.reply({
+        content: 'You need "Manage Channels" or "Manage Server" permissions to configure channel temperature.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    if (valStr.toLowerCase() === 'reset') {
+      deps.memory.clearTemperature(interaction.channelId);
+      await interaction.reply({
+        content: 'Custom channel temperature cleared (reverted to model default).',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    const temp = parseFloat(valStr);
+    if (Number.isNaN(temp) || temp < 0 || temp > 2.0) {
+      await interaction.reply({
+        content: 'Invalid temperature: must be a number between 0.0 and 2.0, or "reset".',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    deps.memory.setTemperature(interaction.channelId, temp);
+    await interaction.reply({
+      content: `Custom channel temperature set to: \`${temp.toFixed(2)}\``,
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
 }
 
 /** Returns true if interaction is in DM or member has ManageChannels/ManageGuild. */
@@ -348,10 +403,12 @@ async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueue): Pro
       const channelTool = createChannelHistoryTool(channel);
       const channelPrompt = deps.memory.getPrompt(msg.channelId) ?? undefined;
       const channelModel = deps.memory.getModel(msg.channelId) ?? undefined;
+      const channelTemperature = deps.memory.getTemperature(msg.channelId) ?? undefined;
       answer = await withTyping(channel, () =>
         deps.chat([...deps.memory.get(msg.channelId, deps.historyCharLimit), question], {
           model: channelModel,
           systemPrompt: channelPrompt,
+          temperature: channelTemperature,
           extraTools: [channelTool],
           onToolStart: (tool) => {
             deps.stats.toolCalls++;

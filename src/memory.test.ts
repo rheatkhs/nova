@@ -99,6 +99,24 @@ test('getModel and setModel persist custom channel model', () => {
   mem.close();
 });
 
+test('getTemperature and setTemperature persist custom channel temperature', () => {
+  const mem = new ConversationMemory(10, ':memory:');
+  expect(mem.getTemperature('c1')).toBeNull();
+
+  mem.setTemperature('c1', 0.2);
+  expect(mem.getTemperature('c1')).toBe(0.2);
+  expect(mem.getTemperature('c2')).toBeNull();
+
+  // Overwrite
+  mem.setTemperature('c1', 0.85);
+  expect(mem.getTemperature('c1')).toBe(0.85);
+
+  // Clear
+  mem.clearTemperature('c1');
+  expect(mem.getTemperature('c1')).toBeNull();
+  mem.close();
+});
+
 test('trimToBudget preserves newest messages within character limit', () => {
   const msgs = [
     { role: 'user' as const, content: 'aaaa' }, // 4 chars

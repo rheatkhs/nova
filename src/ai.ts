@@ -14,6 +14,7 @@ export interface ChatMessage {
 export interface ChatRunOptions {
   model?: string;
   systemPrompt?: string;
+  temperature?: number;
   extraTools?: readonly Tool[];
   now?: Date;
   onToolStart?: (toolName: string) => Promise<void> | void;
@@ -104,6 +105,9 @@ export function createChat({
         stream: false,
         messages: conversation,
       };
+      if (options?.temperature !== undefined) {
+        body.temperature = options.temperature;
+      }
       if (openAiTools) {
         body.tools = openAiTools;
         body.tool_choice = 'auto';
