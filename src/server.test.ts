@@ -208,3 +208,41 @@ test('GET /events streams SSE events', async () => {
   reader!.cancel();
   memory.close();
 });
+
+test('GET /tester renders HTTP request builder page', async () => {
+  const memory = new ConversationMemory(10, ':memory:');
+  const app = createServer({
+    client: mockClient(true),
+    memory,
+    stats: { answered: 0, failed: 0, toolCalls: 0, consecutiveFailures: 0, lastResponseMs: 0 },
+    model: 'test-model',
+  });
+
+  const res = await app.handle(new Request('http://localhost/tester'));
+  expect(res.status).toBe(200);
+  expect(res.headers.get('Content-Type')).toContain('text/html');
+  expect(await res.text()).toContain('Webhook & API Tester');
+  memory.close();
+});
+
+test('POST /api/test-webhook restricts loopback addresses and tests endpoints', async () => {
+  const memory = new ConversationMemory(10, ':memory:');
+  const app = createServer({
+    client: mockClient(true),
+    memory,
+    stats: { answered: 0, failed: 0, toolCalls: 0, consecutiveFailures: 0, lastResponseMs: 0 },
+    model: 'test-model',
+  });
+
+  // Block loopback
+  const resLoopback = await app.handle(
+    new Request('http://localhost/api/test-webhook', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: 'http://localhost:3000/health' }),
+    }),
+  );
+  expect(resLoopback.status).toBe(400);
+  expect(await resLoopback.json()).toEqual({ ok: false, error: 'loopback and private network IPs restricted' });
+  memory.close();
+});

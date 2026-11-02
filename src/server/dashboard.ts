@@ -165,6 +165,7 @@ export function renderDashboard(data: DashboardData): string {
     <footer>
       <div>Nova AI Assistant • Realtime Dashboard</div>
       <div style="display:flex;gap:1.25rem;">
+        <a href="/tester">API Tester</a>
         <a href="/events">/events</a>
         <a href="/stats">/stats</a>
         <a href="/metrics">/metrics</a>
