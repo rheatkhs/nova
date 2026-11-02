@@ -21,7 +21,7 @@ export function createPlaySpotifyTool(getContext?: () => { message?: Message }):
   return {
     name: 'play_spotify',
     description:
-      'Search for a track and optionally join the user voice channel to stream audio live like FlaviBot.',
+      'Search for a track and optionally join the user voice channel to stream audio live like FlaviBot. Supports English and Indonesian (e.g. "putar lagu ...", "puterin ...", "play ...").',
     parameters: {
       type: 'object',
       properties: {
