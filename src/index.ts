@@ -7,7 +7,7 @@ import { createServer } from './server.ts';
 import { defaultTools } from './tools.ts';
 
 const config = loadConfig();
-const stats: BotStats = { answered: 0, failed: 0, toolCalls: 0, consecutiveFailures: 0 };
+const stats: BotStats = { answered: 0, failed: 0, toolCalls: 0, consecutiveFailures: 0, lastResponseMs: 0 };
 const memory = new ConversationMemory(config.historyLimit, config.memoryPath);
 const bot = createBot({
   chat: createChat({ ...config.ai, tools: defaultTools }),

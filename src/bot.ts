@@ -25,6 +25,7 @@ export interface BotStats {
   failed: number;
   toolCalls: number;
   consecutiveFailures: number;
+  lastResponseMs: number;
 }
 
 export interface BotDeps {
@@ -175,6 +176,7 @@ async function handleInteraction(interaction: Interaction, deps: BotDeps): Promi
       `• **Questions Answered:** ${deps.stats.answered}`,
       `• **Questions Failed:** ${deps.stats.failed}${deps.stats.consecutiveFailures > 0 ? ` (${deps.stats.consecutiveFailures} consecutive)` : ''}`,
       `• **Tool Executions:** ${deps.stats.toolCalls}`,
+      `• **Last Response Latency:** ${deps.stats.lastResponseMs > 0 ? `${deps.stats.lastResponseMs}ms` : 'none yet'}`,
       `• **SQLite Memory:** ${memStats.totalMessages} messages across ${memStats.channels} channels`,
     ];
     await interaction.reply({ content: lines.join('\n'), flags: MessageFlags.Ephemeral });
@@ -213,6 +215,7 @@ async function handleInteraction(interaction: Interaction, deps: BotDeps): Promi
         const channelPrompt = deps.memory.getPrompt(threadTarget.id) ?? undefined;
         const channelModel = deps.memory.getModel(threadTarget.id) ?? undefined;
         const channelTemperature = deps.memory.getTemperature(threadTarget.id) ?? undefined;
+        const t0 = Date.now();
         const answer = await withTyping(threadTarget, () =>
           deps.chat([q], {
             model: channelModel,
@@ -220,6 +223,7 @@ async function handleInteraction(interaction: Interaction, deps: BotDeps): Promi
             temperature: channelTemperature,
           }),
         );
+        deps.stats.lastResponseMs = Date.now() - t0;
         deps.memory.append(threadTarget.id, q, { role: 'assistant', content: answer });
         const parts = chunk(answer);
         for (const part of parts) {
@@ -231,11 +235,13 @@ async function handleInteraction(interaction: Interaction, deps: BotDeps): Promi
         const channelPrompt = deps.memory.getPrompt(interaction.channelId) ?? undefined;
         const channelModel = deps.memory.getModel(interaction.channelId) ?? undefined;
         const channelTemperature = deps.memory.getTemperature(interaction.channelId) ?? undefined;
+        const t0 = Date.now();
         const answer = await deps.chat([q], {
           model: channelModel,
           systemPrompt: channelPrompt,
           temperature: channelTemperature,
         });
+        deps.stats.lastResponseMs = Date.now() - t0;
         deps.memory.append(interaction.channelId, q, { role: 'assistant', content: answer });
         await interaction.editReply({ content: answer.slice(0, 2000), allowedMentions: NO_PINGS });
         deps.stats.answered++;
@@ -487,6 +493,7 @@ async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueue): Pro
       const channelPrompt = deps.memory.getPrompt(msg.channelId) ?? undefined;
       const channelModel = deps.memory.getModel(msg.channelId) ?? undefined;
       const channelTemperature = deps.memory.getTemperature(msg.channelId) ?? undefined;
+      const t0 = Date.now();
       answer = await withTyping(channel, () =>
         deps.chat([...deps.memory.get(msg.channelId, deps.historyCharLimit), question], {
           model: channelModel,
@@ -499,6 +506,7 @@ async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueue): Pro
           },
         }),
       );
+      deps.stats.lastResponseMs = Date.now() - t0;
     } catch (err) {
       deps.stats.failed++;
       deps.stats.consecutiveFailures++;
