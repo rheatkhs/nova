@@ -365,6 +365,34 @@ export async function handleButton(interaction: ButtonInteraction, deps: BotDeps
       });
     }
   }
+  if (action === 'prune') {
+    const msgId = Number(authorId);
+    const canManage = Boolean(
+      interaction.inGuild() &&
+        (interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels) ||
+          interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)),
+    );
+    if (!canManage) {
+      await interaction.reply({
+        content: 'You need "Manage Channels" or "Manage Server" permissions to prune memory messages.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    const success = deps.memory.deleteMessageById(msgId);
+    if (success) {
+      await interaction.reply({
+        content: `🗑️ Successfully deleted message ID \`${msgId}\` from SQLite memory.`,
+        flags: MessageFlags.Ephemeral,
+      });
+    } else {
+      await interaction.reply({
+        content: 'Message ID not found or already deleted.',
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+    return;
+  }
 
   if (action === 'step') {
     const stepId = authorId;

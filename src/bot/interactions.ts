@@ -1,6 +1,8 @@
 import {
   ActionRowBuilder,
   AttachmentBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   MessageFlags,
   ModalBuilder,
   PermissionFlagsBits,
@@ -538,6 +540,49 @@ export async function handleInteraction(interaction: Interaction, deps: BotDeps)
       flags: MessageFlags.Ephemeral,
     });
     return;
+  }
+  if (interaction.commandName === 'memory') {
+    const action = interaction.options.getString('action', true);
+    if (action === 'inspect') {
+      const stats = deps.memory.stats();
+      await interaction.reply({
+        content: `💾 **SQLite Memory Diagnostics**\n• **Total Messages Stored:** ${stats.totalMessages}\n• **Active Channels Tracked:** ${stats.channels}\n• **History Limit per Channel:** ${deps.historyCharLimit ?? 'default'} chars`,
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    if (action === 'view') {
+      const history = deps.memory.getDetailedHistory(interaction.channelId, 10);
+      if (history.length === 0) {
+        await interaction.reply({
+          content: 'No stored messages found in SQLite for this channel.',
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+
+      const rows = history.map((m: { id: number; role: string; content: string }, i: number) => {
+        const snippet = m.content.length > 80 ? m.content.slice(0, 80) + '...' : m.content;
+        return `**[#${i + 1}] ID: ${m.id} (${m.role}):** \`${snippet}\``;
+      });
+
+      const row = new ActionRowBuilder<ButtonBuilder>();
+      for (const m of history.slice(0, 5)) {
+        row.addComponents(
+          new ButtonBuilder()
+            .setCustomId(`prune:${m.id}`)
+            .setLabel(`Del #${m.id}`)
+            .setStyle(ButtonStyle.Danger),
+        );
+      }
+
+      await interaction.reply({
+        content: `💾 **SQLite Memory Surgeon (Last ${history.length} messages):**\n\n${rows.join('\n')}\n\n*Click a button below to surgically delete a message row:*`,
+        components: row.components.length > 0 ? [row] : [],
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
   }
 }
 async function handleAutocomplete(interaction: AutocompleteInteraction): Promise<void> {
