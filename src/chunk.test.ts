@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { chunk } from './chunk.ts';
+import { chunk, detectLanguage, tagCodeFences } from './chunk.ts';
 import { formatFooter } from './bot.ts';
 
 test('chunk respects limit and preserves content', () => {
@@ -48,4 +48,21 @@ test('formatFooter produces clean subtext with model, latency, and tools', () =>
   expect(
     formatFooter({ model: 'claude', latencyMs: 320, toolsUsed: ['web_search', 'web_search', 'eval_math'] }),
   ).toBe('\n\n-# ⚡ `claude` • ⏱️ 320ms • 🛠️ web_search, eval_math');
+});
+
+test('detectLanguage correctly identifies languages from snippets', () => {
+  expect(detectLanguage('{"hello": "world"}')).toBe('json');
+  expect(detectLanguage('def test():\n    print("ok")')).toBe('py');
+  expect(detectLanguage('const x = 5;\nconsole.log(x);')).toBe('ts');
+  expect(detectLanguage('SELECT * FROM users;')).toBe('sql');
+  expect(detectLanguage('curl -s http://localhost:3000')).toBe('bash');
+  expect(detectLanguage('plain English notes without syntax')).toBeNull();
+});
+
+test('tagCodeFences tags bare code fences automatically', () => {
+  const bare = '```\nconst a = 1;\nconsole.log(a);\n```';
+  expect(tagCodeFences(bare)).toBe('```ts\nconst a = 1;\nconsole.log(a);\n```');
+
+  const alreadyTagged = '```py\nx = 1\n```';
+  expect(tagCodeFences(alreadyTagged)).toBe('```py\nx = 1\n```');
 });
