@@ -78,7 +78,8 @@ export function createPlaySpotifyTool(getContext?: () => { message?: Message }):
             await entersState(connection, VoiceConnectionStatus.Ready, 5_000);
 
             const player = createAudioPlayer();
-            const resource = createAudioResource(track.previewUrl);
+            const resource = createAudioResource(track.previewUrl, { inlineVolume: true });
+            resource.volume?.setVolume(1.0);
             player.play(resource);
             connection.subscribe(player);
 
