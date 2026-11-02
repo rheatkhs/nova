@@ -4,6 +4,7 @@ import type { BotStats } from './bot.ts';
 import type { ConversationMemory } from './memory.ts';
 import { renderDashboard } from './dashboard.ts';
 import { getSandboxSnippet } from './tools.ts';
+import { events, type BotEvent } from './events.ts';
 
 export interface ServerDeps {
   client: Client;
@@ -63,6 +64,32 @@ export function createServer({ client, memory, stats, model }: ServerDeps) {
       ...stats,
       memory: memory.stats(),
     }))
+    .get('/events', () => {
+      const stream = new ReadableStream({
+        start(controller) {
+          const encoder = new TextEncoder();
+          // Send initial backlog of recent events
+          for (const ev of events.recent()) {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(ev)}\n\n`));
+          }
+          const listener = (ev: BotEvent) => {
+            try {
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(ev)}\n\n`));
+            } catch {
+              events.off('event', listener);
+            }
+          };
+          events.on('event', listener);
+        },
+      });
+      return new Response(stream, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive',
+        },
+      });
+    })
     .get('/metrics', ({ set }) => {
       set.headers['Content-Type'] = 'text/plain; version=0.0.4; charset=utf-8';
       const memStats = memory.stats();

@@ -34,6 +34,7 @@ import type { ConversationMemory } from './memory.ts';
 import { createQueue, type TaskQueue } from './queue.ts';
 import { createChannelHistoryTool, getQuizItem } from './tools.ts';
 import type { RateLimiter } from './rate-limit.ts';
+import { events } from './events.ts';
 
 export interface BotStats {
   answered: number;
@@ -831,6 +832,7 @@ async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueue): Pro
           onToolStart: (tool, step) => {
             toolsUsed.push(tool);
             deps.stats.toolCalls++;
+            events.broadcast('tool', `Invoked ${toolEmoji(tool)} ${tool} (step ${step}) in #${channel.id}`);
             void msg.react(toolEmoji(tool)).catch(() => {});
             const statusText = `*⏳ [Step ${step}] ${toolEmoji(tool)} ${toolLabel(tool)}...*`;
             if (!statusMsg) {
@@ -853,6 +855,7 @@ async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueue): Pro
       }
       deps.stats.failed++;
       deps.stats.consecutiveFailures++;
+      events.broadcast('error', `AI turn failed in #${channel.id}: ${err instanceof Error ? err.message : String(err)}`);
       console.error(err);
       await msg.reply({ content: 'AI request failed, try again later.', allowedMentions: NO_PINGS });
       return;
@@ -872,6 +875,7 @@ async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueue): Pro
     deps.memory.append(msg.channelId, memoryQuestion, { role: 'assistant', content: answer });
     deps.stats.answered++;
     deps.stats.consecutiveFailures = 0;
+    events.broadcast('answer', `Answered question in #${channel.id} (${deps.stats.lastResponseMs}ms)`);
   });
 }
 
