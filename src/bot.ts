@@ -9,10 +9,13 @@ import {
   Events,
   GatewayIntentBits,
   MessageFlags,
+  ModalBuilder,
   Partials,
   PermissionFlagsBits,
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
+  TextInputBuilder,
+  TextInputStyle,
   type Attachment,
   type ButtonInteraction,
   type ChatInputCommandInteraction,
@@ -20,6 +23,7 @@ import {
   type Message,
   type MessageContextMenuCommandInteraction,
   type MessageMentionOptions,
+  type ModalSubmitInteraction,
   type SendableChannels,
   type StringSelectMenuInteraction,
 } from 'discord.js';
@@ -202,6 +206,32 @@ async function handleInteraction(interaction: Interaction, deps: BotDeps): Promi
   }
   if (interaction.isMessageContextMenuCommand()) {
     await handleMessageContextMenu(interaction, deps);
+    return;
+  }
+  if (interaction.isModalSubmit() && interaction.customId === 'prompt-modal') {
+    if (!hasManagePermission(interaction)) {
+      await interaction.reply({
+        content: 'You need "Manage Channels" or "Manage Server" permissions to configure channel prompts.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    const channelId = interaction.channelId;
+    if (!channelId) return;
+    const val = interaction.fields.getTextInputValue('prompt-input')?.trim();
+    if (!val || val.toLowerCase() === 'reset') {
+      deps.memory.clearPrompt(channelId);
+      await interaction.reply({
+        content: 'Custom channel prompt cleared (reverted to global default).',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    deps.memory.setPrompt(channelId, val);
+    await interaction.reply({
+      content: `Custom channel prompt set:\n>>> ${val.slice(0, 500)}`,
+      flags: MessageFlags.Ephemeral,
+    });
     return;
   }
   if (interaction.isStringSelectMenu() && interaction.customId === 'select-model') {
@@ -419,11 +449,33 @@ async function handleInteraction(interaction: Interaction, deps: BotDeps): Promi
   if (interaction.commandName === 'prompt') {
     const text = interaction.options.getString('text')?.trim();
     if (!text) {
-      const current = deps.memory.getPrompt(interaction.channelId);
-      await interaction.reply({
-        content: current ? `Channel prompt: "${current}"` : 'No custom prompt set for this channel (using global default).',
-        flags: MessageFlags.Ephemeral,
-      });
+      if (!hasManagePermission(interaction)) {
+        const current = deps.memory.getPrompt(interaction.channelId);
+        await interaction.reply({
+          content: current
+            ? `Channel prompt: "${current}"`
+            : 'No custom prompt set for this channel (using global default).',
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+      const current = deps.memory.getPrompt(interaction.channelId) || '';
+      const modal = new ModalBuilder()
+        .setCustomId('prompt-modal')
+        .setTitle('Channel AI Persona')
+        .addComponents(
+          new ActionRowBuilder<TextInputBuilder>().addComponents(
+            new TextInputBuilder()
+              .setCustomId('prompt-input')
+              .setLabel('Custom System Prompt / Instructions')
+              .setStyle(TextInputStyle.Paragraph)
+              .setPlaceholder('e.g. You are a senior engineer. Keep answers concise.')
+              .setValue(current)
+              .setRequired(false)
+              .setMaxLength(2000),
+          ),
+        );
+      await interaction.showModal(modal);
       return;
     }
     if (!hasManagePermission(interaction)) {
@@ -631,7 +683,9 @@ async function handleMessageContextMenu(
 }
 
 /** Returns true if interaction is in DM or member has ManageChannels/ManageGuild. */
-function hasManagePermission(interaction: ChatInputCommandInteraction | StringSelectMenuInteraction): boolean {
+function hasManagePermission(
+  interaction: ChatInputCommandInteraction | StringSelectMenuInteraction | ModalSubmitInteraction,
+): boolean {
   if (!interaction.inGuild()) return true;
   return Boolean(
     interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels) ||
