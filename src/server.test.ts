@@ -12,6 +12,7 @@ interface StatsResponse {
   answered: number;
   failed: number;
   toolCalls: number;
+  consecutiveFailures: number;
   memory: { totalMessages: number; channels: number };
 }
 
@@ -29,7 +30,7 @@ test('GET /health returns 200 when ready and 503 when not', async () => {
   const unreadyApp = createServer({
     client: mockClient(false),
     memory,
-    stats: { answered: 0, failed: 0, toolCalls: 0 },
+    stats: { answered: 0, failed: 0, toolCalls: 0, consecutiveFailures: 0 },
     model: 'test-model',
   });
   const resUnready = await unreadyApp.handle(new Request('http://localhost/health'));
@@ -38,7 +39,7 @@ test('GET /health returns 200 when ready and 503 when not', async () => {
   const readyApp = createServer({
     client: mockClient(true),
     memory,
-    stats: { answered: 0, failed: 0, toolCalls: 0 },
+    stats: { answered: 0, failed: 0, toolCalls: 0, consecutiveFailures: 0 },
     model: 'test-model',
   });
   const resReady = await readyApp.handle(new Request('http://localhost/health'));
@@ -57,12 +58,26 @@ test('GET /health returns 503 when database is inaccessible', async () => {
   const app = createServer({
     client: mockClient(true),
     memory: brokenMemory,
-    stats: { answered: 0, failed: 0, toolCalls: 0 },
+    stats: { answered: 0, failed: 0, toolCalls: 0, consecutiveFailures: 0 },
     model: 'test-model',
   });
   const res = await app.handle(new Request('http://localhost/health'));
   expect(res.status).toBe(503);
   expect(await res.json()).toEqual({ ok: false, error: 'sqlite database inaccessible' });
+});
+
+test('GET /health returns 503 when consecutiveFailures >= 5', async () => {
+  const memory = new ConversationMemory(10, ':memory:');
+  const app = createServer({
+    client: mockClient(true),
+    memory,
+    stats: { answered: 10, failed: 5, toolCalls: 0, consecutiveFailures: 5 },
+    model: 'test-model',
+  });
+  const res = await app.handle(new Request('http://localhost/health'));
+  expect(res.status).toBe(503);
+  expect(await res.json()).toEqual({ ok: false, error: 'consecutive upstream ai failures' });
+  memory.close();
 });
 
 test('GET /stats returns full metrics including memory and tool calls', async () => {
@@ -72,7 +87,7 @@ test('GET /stats returns full metrics including memory and tool calls', async ()
   const app = createServer({
     client: mockClient(true, 3, 25),
     memory,
-    stats: { answered: 10, failed: 2, toolCalls: 7 },
+    stats: { answered: 10, failed: 2, toolCalls: 7, consecutiveFailures: 0 },
     model: 'gpt-4o-mini',
   });
 
@@ -87,6 +102,7 @@ test('GET /stats returns full metrics including memory and tool calls', async ()
   expect(data.answered).toBe(10);
   expect(data.failed).toBe(2);
   expect(data.toolCalls).toBe(7);
+  expect(data.consecutiveFailures).toBe(0);
   expect(data.memory).toEqual({ totalMessages: 1, channels: 1 });
   memory.close();
 });

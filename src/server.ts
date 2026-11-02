@@ -17,6 +17,9 @@ export function createServer({ client, memory, stats, model }: ServerDeps) {
       if (!client.isReady()) {
         return status(503, { ok: false, error: 'discord gateway disconnected' });
       }
+      if (stats.consecutiveFailures >= 5) {
+        return status(503, { ok: false, error: 'consecutive upstream ai failures' });
+      }
       try {
         memory.stats();
         return { ok: true };
