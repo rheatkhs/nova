@@ -30,6 +30,7 @@ Nova runs an agent loop (`maxToolSteps = 5`) with built-in tools:
 | `wikipedia_search` | Official Wikipedia search API for facts, people, and concepts |
 | `web_search` | Real-time web search via Brave Search API or self-hosted SearXNG |
 | `fetch_page` | Fetches any HTTP/HTTPS URL, strips HTML/scripts, returns text |
+| `render_chart` | Generates visual charts (bar, line, pie, doughnut) rendered inline in Discord |
 | `read_channel_history` | Reads recent chat messages in the current Discord channel (contextual tool) |
 
 

@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { createChannelHistoryTool, evalMathTool, evaluateMath, fetchPageTool, getCurrentTimeTool, webSearchTool, wikipediaSearchTool } from './tools.ts';
+import { createChannelHistoryTool, evalMathTool, evaluateMath, fetchPageTool, getCurrentTimeTool, renderChartTool, webSearchTool, wikipediaSearchTool } from './tools.ts';
 
 test('get_current_time returns valid UTC date info', async () => {
   const result = JSON.parse(await getCurrentTimeTool.execute({}));
@@ -96,4 +96,24 @@ test('webSearchTool falls back to Wikipedia when neither Brave nor SearXNG confi
 
   if (origBrave) process.env.BRAVE_API_KEY = origBrave;
   if (origSearxng) process.env.SEARXNG_URL = origSearxng;
+});
+
+test('renderChartTool validates labels and data arrays', async () => {
+  expect(await renderChartTool.execute({ labels: [], data: [] })).toBe('Error: labels and data arrays cannot be empty');
+  expect(await renderChartTool.execute({ labels: ['A'], data: [1, 2] })).toBe(
+    'Error: labels count (1) must match data count (2)',
+  );
+});
+
+test('renderChartTool generates a valid QuickChart URL', async () => {
+  const res = await renderChartTool.execute({
+    type: 'bar',
+    title: 'Adoption Rate',
+    labels: ['Q1', 'Q2', 'Q3'],
+    data: [10, 20, 30],
+    datasetLabel: 'Growth',
+  });
+  expect(res).toContain('[Chart generated: Adoption Rate]');
+  expect(res).toContain('https://quickchart.io/chart?c=');
+  expect(res).toContain('bkg=%23181a20');
 });
