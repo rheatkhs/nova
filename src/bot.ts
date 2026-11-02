@@ -32,7 +32,7 @@ import type { Chat, ChatMessage, MessagePart } from './ai.ts';
 import { chunk } from './chunk.ts';
 import type { ConversationMemory } from './memory.ts';
 import { createQueue, type TaskQueue } from './queue.ts';
-import { createChannelHistoryTool, getQuizItem } from './tools.ts';
+import { createChannelHistoryTool, createReminderTool, getQuizItem } from './tools.ts';
 import type { RateLimiter } from './rate-limit.ts';
 import { events } from './events.ts';
 
@@ -285,7 +285,7 @@ async function handleInteraction(interaction: Interaction, deps: BotDeps): Promi
       '• `/temperature [value]` - View or set temperature 0.0-2.0 (admins)',
       '• `/language [name]` - View or set preferred channel language (admins)',
       '',
-      '• `web_search` 🔎, `wikipedia_search` 🔍, `fetch_page` 🌐, `render_chart` 📊, `render_diagram` 📐, `render_html` 💻, `generate_image` 🎨, `create_poll` 🗳️, `eval_math` 🔢, `get_current_time` ⏱️, `read_channel_history` 📜',
+      '• `web_search` 🔎, `wikipedia_search` 🔍, `fetch_page` 🌐, `render_chart` 📊, `render_diagram` 📐, `render_html` 💻, `generate_image` 🎨, `create_poll` 🗳️, `create_reminder` ⏰, `eval_math` 🔢, `get_current_time` ⏱️, `read_channel_history` 📜',
     ].join('\n');
     await interaction.reply({ content: text, flags: MessageFlags.Ephemeral });
     return;
@@ -813,6 +813,7 @@ async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueue): Pro
       content: attachSummary ? `${userText} [Attached ${attachSummary}]` : userText,
     };
     const channelTool = createChannelHistoryTool(channel);
+    const reminderTool = createReminderTool(channel, msg.author.id);
     const channelPrompt = deps.memory.getPrompt(msg.channelId) ?? undefined;
     const channelModel = deps.memory.getModel(msg.channelId) ?? undefined;
     const channelTemperature = deps.memory.getTemperature(msg.channelId) ?? undefined;
@@ -828,7 +829,7 @@ async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueue): Pro
           systemPrompt: channelPrompt,
           temperature: channelTemperature,
           language: channelLanguage,
-          extraTools: [channelTool],
+          extraTools: [channelTool, reminderTool],
           onToolStart: (tool, step) => {
             toolsUsed.push(tool);
             deps.stats.toolCalls++;
@@ -1331,6 +1332,8 @@ export function toolEmoji(toolName: string): string {
       return '🎨';
     case 'render_diagram':
       return '📐';
+    case 'create_reminder':
+      return '⏰';
     default:
       return '⚙️';
   }
@@ -1357,6 +1360,8 @@ export function toolLabel(toolName: string): string {
       return 'Rendering Mermaid diagram';
     case 'eval_math':
       return 'Evaluating calculation';
+    case 'create_reminder':
+      return 'Setting reminder timer';
     case 'read_channel_history':
       return 'Reading channel history';
     case 'get_current_time':

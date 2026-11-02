@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { createChannelHistoryTool, createPollTool, createQuizTool, evalMathTool, evaluateMath, fetchPageTool, generateImageTool, getCurrentTimeTool, getQuizItem, getSandboxSnippet, renderChartTool, renderDiagramTool, renderHtmlTool, webSearchTool, wikipediaSearchTool } from './tools.ts';
+import { createChannelHistoryTool, createPollTool, createQuizTool, createReminderTool, evalMathTool, evaluateMath, fetchPageTool, generateImageTool, getCurrentTimeTool, getQuizItem, getSandboxSnippet, renderChartTool, renderDiagramTool, renderHtmlTool, webSearchTool, wikipediaSearchTool } from './tools.ts';
 
 test('get_current_time returns valid UTC date info', async () => {
   const result = JSON.parse(await getCurrentTimeTool.execute({}));
@@ -248,4 +248,25 @@ test('generateImageTool validates prompt and formats Pollinations URL with aspec
 
   const resPortrait = await generateImageTool.execute({ prompt: 'Tall tower', aspectRatio: 'portrait' });
   expect(resPortrait).toContain('width=512&height=768');
+});
+
+test('createReminderTool validates parameters and schedules timer', async () => {
+  const sentMessages: string[] = [];
+  const fakeChannel = {
+    send: async (opt: { content: string }) => {
+      sentMessages.push(opt.content);
+    },
+  };
+
+  const tool = createReminderTool(fakeChannel, 'user-123');
+
+  expect(await tool.execute({ seconds: 1, note: '' })).toBe('Error: note is required');
+  expect(await tool.execute({ seconds: 2, note: 'Wake up' })).toBe(
+    'Error: seconds must be a positive number of at least 5',
+  );
+
+  const res = await tool.execute({ seconds: 10, note: 'Stand up and stretch' });
+  expect(res).toContain('[Reminder scheduled]');
+  expect(res).toContain('10 second(s)');
+  expect(res).toContain('Stand up and stretch');
 });

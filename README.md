@@ -81,6 +81,7 @@ Nova executes tools concurrently during the agent loop (`maxToolSteps = 5`):
 | `create_quiz` | 🧠 | Generates interactive multiple-choice quizzes with clickable answer buttons |
 | `eval_math` | 🔢 | Safe recursive-descent math evaluator (+, -, *, /, %, ^, sqrt, trig, logs, constants) |
 | `get_current_time` | ⏱️ | Real-time UTC timestamp, date, and day of week |
+| `create_reminder` | ⏰ | Schedules automated reminder timer pings back to the channel (contextual tool) |
 | `read_channel_history` | 📜 | Reads recent chat messages in the active channel (contextual tool) |
 
 ---
