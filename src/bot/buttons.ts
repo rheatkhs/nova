@@ -195,7 +195,7 @@ export async function handleButton(interaction: ButtonInteraction, deps: BotDeps
     }
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     try {
-      const locale = deps.memory.getVoice(interaction.channelId) || 'en';
+      const locale = deps.memory.getVoice(interaction.channelId) || deps.memory.getLanguage(interaction.channelId) || 'en';
       const audioBuf = await generateSpeechAudio(rawText.slice(0, 200), locale);
       const file = new AttachmentBuilder(audioBuf, { name: 'speech.mp3' });
       await interaction.editReply({
