@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { chunk } from './chunk.ts';
+import { formatFooter } from './bot.ts';
 
 test('chunk respects limit and preserves content', () => {
   expect(chunk('')).toEqual([]);
@@ -39,4 +40,12 @@ test('handles bare code fences without language tag', () => {
 test('does not mangle code blocks that fit entirely within one chunk', () => {
   const code = 'before\n```ts\nconst x = 1;\n```\nafter';
   expect(chunk(code, 100)).toEqual([code]);
+});
+
+test('formatFooter produces clean subtext with model, latency, and tools', () => {
+  expect(formatFooter()).toBe('');
+  expect(formatFooter({ model: 'gpt-4o', latencyMs: 250 })).toBe('\n\n-# ⚡ `gpt-4o` • ⏱️ 250ms');
+  expect(
+    formatFooter({ model: 'claude', latencyMs: 320, toolsUsed: ['web_search', 'web_search', 'eval_math'] }),
+  ).toBe('\n\n-# ⚡ `claude` • ⏱️ 320ms • 🛠️ web_search, eval_math');
 });
