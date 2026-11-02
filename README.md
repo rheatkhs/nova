@@ -77,6 +77,7 @@ Nova executes tools concurrently during the agent loop (`maxToolSteps = 5`):
 | `render_diagram` | 📐 | Renders architecture, sequence, and flowcharts visually using Mermaid syntax |
 | `render_html` | 💻 | Serves live interactive HTML/CSS/JS sandbox applications via `/view/:id` |
 | `create_poll` | 🗳️ | Generates formatted numbered polls with reaction emojis for voting |
+| `create_quiz` | 🧠 | Generates interactive multiple-choice quizzes with clickable answer buttons |
 | `eval_math` | 🔢 | Safe recursive-descent math evaluator (+, -, *, /, %, ^, sqrt, trig, logs, constants) |
 | `get_current_time` | ⏱️ | Real-time UTC timestamp, date, and day of week |
 | `read_channel_history` | 📜 | Reads recent chat messages in the active channel (contextual tool) |

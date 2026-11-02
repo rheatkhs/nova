@@ -32,7 +32,7 @@ import type { Chat, ChatMessage, MessagePart } from './ai.ts';
 import { chunk } from './chunk.ts';
 import type { ConversationMemory } from './memory.ts';
 import { createQueue, type TaskQueue } from './queue.ts';
-import { createChannelHistoryTool } from './tools.ts';
+import { createChannelHistoryTool, getQuizItem } from './tools.ts';
 import type { RateLimiter } from './rate-limit.ts';
 
 export interface BotStats {
@@ -966,14 +966,17 @@ async function sendAnswer(
   const parts = chunk(answer);
   const canThread = msg.inGuild() && !msg.channel.isThread();
   const row = buildActionRow(msg.author.id, canThread, /```[a-zA-Z0-9_-]*\n[\s\S]*?\n```/.test(answer));
+  const quizId = answer.match(/\[QUIZ:([a-z0-9]+)\]/)?.[1];
+  const cleanAnswer = answer.replace(/\[QUIZ:[a-z0-9]+\]\n?/g, '');
+  const rows = quizId ? [buildQuizRow(quizId), row] : [row];
 
   if (parts.length <= 2) {
     const [first, second] = parts;
     if (second) {
       await msg.reply({ content: first ?? '', allowedMentions: NO_PINGS });
-      await channel.send({ content: `${second}${footer}`, components: [row], allowedMentions: NO_PINGS });
+      await channel.send({ content: `${second}${footer}`, components: rows, allowedMentions: NO_PINGS });
     } else {
-      await msg.reply({ content: `${first ?? ''}${footer}`, components: [row], allowedMentions: NO_PINGS });
+      await msg.reply({ content: `${first ?? ''}${footer}`, components: rows, allowedMentions: NO_PINGS });
     }
     return;
   }
@@ -984,7 +987,7 @@ async function sendAnswer(
   await msg.reply({
     content: `${preview}\n\n*(Full response attached as response.md)*${footer}`,
     files: [file],
-    components: [row],
+    components: rows,
     allowedMentions: NO_PINGS,
   });
 }
@@ -1034,6 +1037,20 @@ function buildActionRow(authorId: string, canThread: boolean, withCode = false) 
   return row;
 }
 
+function buildQuizRow(quizId: string) {
+  const row = new ActionRowBuilder<ButtonBuilder>();
+  const letters = ['A', 'B', 'C', 'D'];
+  for (let i = 0; i < 4; i++) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`quiz:${quizId}:${i}`)
+        .setLabel(letters[i]!)
+        .setStyle(ButtonStyle.Primary),
+    );
+  }
+  return row;
+}
+
 function buildModelSelectMenu(currentModel: string | null) {
   const row = new ActionRowBuilder<StringSelectMenuBuilder>();
   const menu = new StringSelectMenuBuilder()
@@ -1070,6 +1087,29 @@ function buildModelSelectMenu(currentModel: string | null) {
 }
 
 async function handleButton(interaction: ButtonInteraction, deps: BotDeps): Promise<void> {
+  if (interaction.customId.startsWith('quiz:')) {
+    const [, quizId, idxStr] = interaction.customId.split(':');
+    const quiz = quizId ? getQuizItem(quizId) : undefined;
+    if (!quiz) {
+      await interaction.reply({
+        content: 'This quiz has expired.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    const chosenIndex = Number(idxStr);
+    const isCorrect = chosenIndex === quiz.correctIndex;
+    const letters = ['A', 'B', 'C', 'D'];
+    const chosenLetter = letters[chosenIndex] ?? '';
+    const correctLetter = letters[quiz.correctIndex] ?? '';
+
+    const reply = isCorrect
+      ? `🎉 **Correct! (${chosenLetter})**\n\n${quiz.explanation}`
+      : `❌ **Incorrect (You chose ${chosenLetter})**\n\nCorrect answer is **${correctLetter}. ${quiz.options[quiz.correctIndex]}**\n\n${quiz.explanation}`;
+
+    await interaction.reply({ content: reply, flags: MessageFlags.Ephemeral });
+    return;
+  }
   if (interaction.customId === 'tts') {
     const rawText = interaction.message.content.replace(/^-#.*$/gm, '').replace(/```[\s\S]*?```/g, '').trim();
     if (!rawText) {
