@@ -7,7 +7,7 @@ import {
 import type { AnswerMeta, BotDeps } from './types.ts';
 import { NO_PINGS, TYPING_REFRESH_MS } from './types.ts';
 import type { TaskQueue } from '../queue.ts';
-import { buildActionRow, buildQuizRow, saveStepTrace } from './buttons.ts';
+import { buildActionRow, buildPageNavRow, buildQuizRow, savePageEntry, saveStepTrace } from './buttons.ts';
 import { formatFooter, toolEmoji, toolLabel } from './footer.ts';
 import { createChannelHistoryTool, createReminderTool } from '../tools/index.ts';
 import { chunk } from '../chunk.ts';
@@ -84,21 +84,28 @@ export async function sendAnswer(
   const footer = formatFooter(meta);
   const parts = chunk(answer);
   const canThread = msg.inGuild() && !msg.channel.isThread();
+  const withCode = /```[a-zA-Z0-9_-]*\n[\s\S]*?\n```/.test(answer);
   const stepTraceId =
     meta?.stepTraces && meta.stepTraces.length >= 2 ? saveStepTrace(meta.stepTraces as string[]) : undefined;
-  const row = buildActionRow(msg.author.id, canThread, /```[a-zA-Z0-9_-]*\n[\s\S]*?\n```/.test(answer), stepTraceId);
+  const row = buildActionRow(msg.author.id, canThread, withCode, stepTraceId);
   const quizId = answer.match(/\[QUIZ:([a-z0-9]+)\]/)?.[1];
   const cleanAnswer = answer.replace(/\[QUIZ:[a-z0-9]+\]\n?/g, '');
-  const rows = quizId ? [buildQuizRow(quizId), row] : [row];
 
-  if (parts.length <= 2) {
-    const [first, second] = parts;
-    if (second) {
-      await msg.reply({ content: first ?? '', allowedMentions: NO_PINGS });
-      await channel.send({ content: `${second}${footer}`, components: rows, allowedMentions: NO_PINGS });
-    } else {
-      await msg.reply({ content: `${first ?? ''}${footer}`, components: rows, allowedMentions: NO_PINGS });
-    }
+  if (parts.length > 1 && parts.length <= 4) {
+    const pageId = savePageEntry(parts, footer, msg.author.id, canThread, withCode);
+    const navRow = buildPageNavRow(pageId, 0, parts.length);
+    const rows = quizId ? [buildQuizRow(quizId), navRow, row] : [navRow, row];
+    await msg.reply({
+      content: `${parts[0] ?? ''}${footer}`,
+      components: rows,
+      allowedMentions: NO_PINGS,
+    });
+    return;
+  }
+
+  const rows = quizId ? [buildQuizRow(quizId), row] : [row];
+  if (parts.length === 1) {
+    await msg.reply({ content: `${parts[0] ?? ''}${footer}`, components: rows, allowedMentions: NO_PINGS });
     return;
   }
 
