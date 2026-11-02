@@ -504,8 +504,42 @@ export async function handleInteraction(interaction: Interaction, deps: BotDeps)
     });
     return;
   }
+  if (interaction.commandName === 'voice') {
+    const localeStr = interaction.options.getString('locale')?.trim();
+    if (!localeStr) {
+      const current = deps.memory.getVoice(interaction.channelId);
+      await interaction.reply({
+        content:
+          current !== null
+            ? `Channel voice locale: \`${current}\``
+            : 'No custom voice set for this channel (using default en).',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    if (!hasManagePermission(interaction)) {
+      await interaction.reply({
+        content: 'You need "Manage Channels" or "Manage Server" permissions to configure channel voice.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    if (localeStr.toLowerCase() === 'reset') {
+      deps.memory.clearVoice(interaction.channelId);
+      await interaction.reply({
+        content: 'Custom channel voice cleared (reverted to default en).',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    deps.memory.setVoice(interaction.channelId, localeStr);
+    await interaction.reply({
+      content: `Custom channel voice locale set to: \`${localeStr}\``,
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
 }
-
 async function handleAutocomplete(interaction: AutocompleteInteraction): Promise<void> {
   const focused = interaction.options.getFocused(true);
   const query = focused.value.toLowerCase().trim();
