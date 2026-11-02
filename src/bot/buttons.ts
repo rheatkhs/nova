@@ -32,6 +32,51 @@ export function saveStepTrace(steps: string[]): string {
   return id;
 }
 
+export interface PageEntry {
+  id: string;
+  pages: string[];
+  footer: string;
+  authorId: string;
+  canThread: boolean;
+  withCode: boolean;
+}
+
+const PAGE_STORE = new Map<string, PageEntry>();
+
+export function savePageEntry(pages: string[], footer: string, authorId: string, canThread: boolean, withCode: boolean): string {
+  const id = Math.random().toString(36).slice(2, 8);
+  PAGE_STORE.set(id, { id, pages, footer, authorId, canThread, withCode });
+  if (PAGE_STORE.size > 50) {
+    const oldest = PAGE_STORE.keys().next().value;
+    if (oldest) PAGE_STORE.delete(oldest);
+  }
+  return id;
+}
+
+export function buildPageNavRow(pageId: string, pageIndex: number, totalPages: number) {
+  const row = new ActionRowBuilder<ButtonBuilder>();
+  row.addComponents(
+    new ButtonBuilder()
+      .setCustomId(`page:${pageId}:${pageIndex - 1}`)
+      .setLabel('Prev Page')
+      .setEmoji('◀️')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(pageIndex === 0),
+    new ButtonBuilder()
+      .setCustomId('page-noop')
+      .setLabel(`Page ${pageIndex + 1} of ${totalPages}`)
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(true),
+    new ButtonBuilder()
+      .setCustomId(`page:${pageId}:${pageIndex + 1}`)
+      .setLabel('Next Page')
+      .setEmoji('▶️')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(pageIndex === totalPages - 1),
+  );
+  return row;
+}
+
 export function buildActionRow(authorId: string, canThread: boolean, withCode = false, stepTraceId?: string) {
   const row = new ActionRowBuilder<ButtonBuilder>();
   if (canThread) {
@@ -362,6 +407,30 @@ export async function handleButton(interaction: ButtonInteraction, deps: BotDeps
     } else {
       await interaction.reply({ content, components: [navRow], flags: MessageFlags.Ephemeral });
     }
+    return;
+  }
+
+  if (action === 'page') {
+    const pageId = authorId;
+    const targetPageIndex = Number(interaction.customId.split(':')[2] || '0');
+    const entry = pageId ? PAGE_STORE.get(pageId) : undefined;
+    if (!entry) {
+      await interaction.reply({
+        content: 'This multi-page message has expired.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    const idx = Math.max(0, Math.min(targetPageIndex, entry.pages.length - 1));
+    const pageContent = entry.pages[idx] ?? '';
+    const navRow = buildPageNavRow(entry.id, idx, entry.pages.length);
+    const actionRow = buildActionRow(entry.authorId, entry.canThread, entry.withCode);
+
+    await interaction.update({
+      content: `${pageContent}${entry.footer}`,
+      components: [navRow, actionRow],
+    });
     return;
   }
 }
