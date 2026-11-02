@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { chunk, detectLanguage, tagCodeFences } from './chunk.ts';
-import { formatFooter, toolLabel } from './bot.ts';
+import { extractCodeSnippet, formatFooter, toolLabel } from './bot.ts';
 
 test('chunk respects limit and preserves content', () => {
   expect(chunk('')).toEqual([]);
@@ -67,4 +67,16 @@ test('tagCodeFences tags bare code fences automatically', () => {
 
   const alreadyTagged = '```py\nx = 1\n```';
   expect(tagCodeFences(alreadyTagged)).toBe('```py\nx = 1\n```');
+});
+
+test('extractCodeSnippet extracts code block and maps file extension', () => {
+  expect(extractCodeSnippet('Plain text without code')).toBeNull();
+
+  const pySnippet = extractCodeSnippet('Here is the script:\n```python\nprint("hello")\n```');
+  expect(pySnippet?.ext).toBe('py');
+  expect(pySnippet?.code).toBe('print("hello")');
+
+  const rustSnippet = extractCodeSnippet('```rs\nfn main() {}\n```');
+  expect(rustSnippet?.ext).toBe('rs');
+  expect(rustSnippet?.code).toBe('fn main() {}');
 });
