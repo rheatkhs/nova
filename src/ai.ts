@@ -15,6 +15,7 @@ export interface ChatRunOptions {
   model?: string;
   systemPrompt?: string;
   extraTools?: readonly Tool[];
+  now?: Date;
   onToolStart?: (toolName: string) => Promise<void> | void;
 }
 
@@ -89,8 +90,10 @@ export function createChat({
           }))
         : undefined;
     const activeSystemPrompt = options?.systemPrompt || systemPrompt;
+    const now = options?.now ?? new Date();
+    const dateContext = `Current time: ${now.toISOString().slice(0, 10)} (${now.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' })}, UTC).`;
     const conversation: ApiMessage[] = [
-      { role: 'system', content: activeSystemPrompt },
+      { role: 'system', content: `${activeSystemPrompt}\n\n${dateContext}` },
       ...messages.map((m) => ({ role: m.role, content: m.content })),
     ];
 
