@@ -504,6 +504,41 @@ export async function handleInteraction(interaction: Interaction, deps: BotDeps)
     });
     return;
   }
+  if (interaction.commandName === 'bahasa') {
+    const langStr = interaction.options.getString('lang')?.trim();
+    if (!langStr) {
+      const current = deps.memory.getLanguage(interaction.channelId);
+      await interaction.reply({
+        content:
+          current !== null
+            ? `Channel language: \`${current}\``
+            : 'No custom language set for this channel (using default en).',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    if (!hasManagePermission(interaction)) {
+      await interaction.reply({
+        content: 'You need "Manage Channels" or "Manage Server" permissions to configure channel language.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    if (langStr.toLowerCase() === 'reset') {
+      deps.memory.clearLanguage(interaction.channelId);
+      await interaction.reply({
+        content: 'Custom channel language cleared (reverted to default en).',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    deps.memory.setLanguage(interaction.channelId, langStr);
+    await interaction.reply({
+      content: `Custom channel language set to: \`${langStr}\``,
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
   if (interaction.commandName === 'voice') {
     const localeStr = interaction.options.getString('locale')?.trim();
     if (!localeStr) {
