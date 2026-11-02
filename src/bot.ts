@@ -1,4 +1,5 @@
 import {
+  AttachmentBuilder,
   Client,
   Events,
   GatewayIntentBits,
@@ -367,9 +368,24 @@ async function withTyping<T>(channel: SendableChannels, task: () => Promise<T>):
 }
 
 async function sendAnswer(msg: Message, channel: SendableChannels, answer: string): Promise<void> {
-  const [first, ...rest] = chunk(answer);
-  await msg.reply({ content: first ?? '', allowedMentions: NO_PINGS });
-  for (const part of rest) await channel.send({ content: part, allowedMentions: NO_PINGS });
+  const parts = chunk(answer);
+  if (parts.length <= 2) {
+    const [first, second] = parts;
+    await msg.reply({ content: first ?? '', allowedMentions: NO_PINGS });
+    if (second) {
+      await channel.send({ content: second, allowedMentions: NO_PINGS });
+    }
+    return;
+  }
+
+  // Long answer (>4,000 chars): send first part as preview and attach full markdown file
+  const preview = parts[0] ?? '';
+  const file = new AttachmentBuilder(Buffer.from(answer, 'utf-8'), { name: 'response.md' });
+  await msg.reply({
+    content: `${preview}\n\n*(Full response attached as response.md)*`,
+    files: [file],
+    allowedMentions: NO_PINGS,
+  });
 }
 
 /** Maps a tool name to a short visual status emoji. */
