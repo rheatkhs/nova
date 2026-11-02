@@ -11,6 +11,8 @@ import {
   MessageFlags,
   Partials,
   PermissionFlagsBits,
+  StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder,
   type Attachment,
   type ButtonInteraction,
   type ChatInputCommandInteraction,
@@ -19,6 +21,7 @@ import {
   type MessageContextMenuCommandInteraction,
   type MessageMentionOptions,
   type SendableChannels,
+  type StringSelectMenuInteraction,
 } from 'discord.js';
 import type { Chat, ChatMessage, MessagePart } from './ai.ts';
 import { chunk } from './chunk.ts';
@@ -199,6 +202,30 @@ async function handleInteraction(interaction: Interaction, deps: BotDeps): Promi
   }
   if (interaction.isMessageContextMenuCommand()) {
     await handleMessageContextMenu(interaction, deps);
+    return;
+  }
+  if (interaction.isStringSelectMenu() && interaction.customId === 'select-model') {
+    if (!hasManagePermission(interaction)) {
+      await interaction.reply({
+        content: 'You need "Manage Channels" or "Manage Server" permissions to configure channel models.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    const chosen = interaction.values[0];
+    if (!chosen || chosen === 'reset') {
+      deps.memory.clearModel(interaction.channelId);
+      await interaction.update({
+        content: 'Custom channel model cleared (reverted to global default).',
+        components: [],
+      });
+      return;
+    }
+    deps.memory.setModel(interaction.channelId, chosen);
+    await interaction.update({
+      content: `Custom channel model set to: \`${chosen}\``,
+      components: [],
+    });
     return;
   }
   if (!interaction.isChatInputCommand()) return;
@@ -425,8 +452,12 @@ async function handleInteraction(interaction: Interaction, deps: BotDeps): Promi
     const name = interaction.options.getString('name')?.trim();
     if (!name) {
       const current = deps.memory.getModel(interaction.channelId);
+      const row = buildModelSelectMenu(current);
       await interaction.reply({
-        content: current ? `Channel model: \`${current}\`` : 'No custom model set for this channel (using global default).',
+        content: current
+          ? `Current channel model: \`${current}\`\nSelect a new model below or specify \`/model [name]\` directly:`
+          : 'No custom model set for this channel (using global default).\nSelect a model below or specify \`/model [name]\` directly:',
+        components: [row],
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -600,7 +631,7 @@ async function handleMessageContextMenu(
 }
 
 /** Returns true if interaction is in DM or member has ManageChannels/ManageGuild. */
-function hasManagePermission(interaction: ChatInputCommandInteraction): boolean {
+function hasManagePermission(interaction: ChatInputCommandInteraction | StringSelectMenuInteraction): boolean {
   if (!interaction.inGuild()) return true;
   return Boolean(
     interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels) ||
@@ -864,6 +895,41 @@ function buildActionRow(authorId: string, canThread: boolean) {
       .setEmoji('🗑️')
       .setStyle(ButtonStyle.Secondary),
   );
+  return row;
+}
+
+function buildModelSelectMenu(currentModel: string | null) {
+  const row = new ActionRowBuilder<StringSelectMenuBuilder>();
+  const menu = new StringSelectMenuBuilder()
+    .setCustomId('select-model')
+    .setPlaceholder('Select a model for this channel...')
+    .addOptions(
+      new StringSelectMenuOptionBuilder()
+        .setLabel('Gemini 3.8 Flash')
+        .setDescription('Ultra fast, concise, multimodal reasoning')
+        .setValue('ag/gemini-3.8-flash')
+        .setDefault(currentModel === 'ag/gemini-3.8-flash'),
+      new StringSelectMenuOptionBuilder()
+        .setLabel('Claude Sonnet 5.5')
+        .setDescription('Deep coding, analysis, and reasoning')
+        .setValue('ag/claude-sonnet-5-5')
+        .setDefault(currentModel === 'ag/claude-sonnet-5-5'),
+      new StringSelectMenuOptionBuilder()
+        .setLabel('Claude Opus 5.5')
+        .setDescription('Maximum depth for complex tasks')
+        .setValue('ag/claude-opus-5-5')
+        .setDefault(currentModel === 'ag/claude-opus-5-5'),
+      new StringSelectMenuOptionBuilder()
+        .setLabel('GPT-4o Mini')
+        .setDescription('Lightweight OpenAI general assistant')
+        .setValue('gpt-4o-mini')
+        .setDefault(currentModel === 'gpt-4o-mini'),
+      new StringSelectMenuOptionBuilder()
+        .setLabel('Reset to Default')
+        .setDescription('Use server default from AI_MODEL in .env')
+        .setValue('reset'),
+    );
+  row.addComponents(menu);
   return row;
 }
 
