@@ -3,6 +3,7 @@ import { Elysia } from 'elysia';
 import type { BotStats } from '../bot.ts';
 import type { ConversationMemory } from '../memory.ts';
 import { renderDashboard } from './dashboard.ts';
+import { renderTesterPage } from './tester.ts';
 import { getSandboxSnippet } from '../tools/index.ts';
 import { events, type BotEvent } from '../events.ts';
 
@@ -40,6 +41,69 @@ export function createServer({ client, memory, stats, model }: ServerDeps) {
       }
       set.headers['Content-Type'] = 'text/html; charset=utf-8';
       return snippet.html;
+    })
+    .get('/tester', ({ set }) => {
+      set.headers['Content-Type'] = 'text/html; charset=utf-8';
+      return renderTesterPage();
+    })
+    .post('/api/test-webhook', async ({ body, status }) => {
+      const data = body as { url?: string; method?: string; payload?: string };
+      const rawUrl = String(data.url || '').trim();
+      if (!rawUrl) return status(400, { ok: false, error: 'url is required' });
+
+      let targetUrl: URL;
+      try {
+        targetUrl = new URL(rawUrl);
+        if (targetUrl.protocol !== 'http:' && targetUrl.protocol !== 'https:') {
+          return status(400, { ok: false, error: 'only http and https allowed' });
+        }
+        const hostname = targetUrl.hostname.toLowerCase();
+        if (
+          hostname === 'localhost' ||
+          hostname === '127.0.0.1' ||
+          hostname === '::1' ||
+          hostname.startsWith('192.168.') ||
+          hostname.startsWith('10.')
+        ) {
+          return status(400, { ok: false, error: 'loopback and private network IPs restricted' });
+        }
+      } catch {
+        return status(400, { ok: false, error: 'invalid url format' });
+      }
+
+      const method = String(data.method || 'GET').toUpperCase();
+      const payload = data.payload ? String(data.payload) : undefined;
+      const headers: Record<string, string> = { 'User-Agent': 'NovaWebhookTester/1.0' };
+      if (payload && (payload.startsWith('{') || payload.startsWith('['))) {
+        headers['Content-Type'] = 'application/json';
+      }
+
+      try {
+        const t0 = Date.now();
+        const res = await fetch(targetUrl.toString(), {
+          method,
+          headers,
+          body: method !== 'GET' && method !== 'HEAD' ? payload : undefined,
+          signal: AbortSignal.timeout(10_000),
+        });
+        const duration = Date.now() - t0;
+        const text = (await res.text()).slice(0, 3_000);
+        return {
+          ok: res.ok,
+          status: res.status,
+          statusText: res.statusText,
+          duration,
+          body: text || '(empty response)',
+        };
+      } catch (err) {
+        return {
+          ok: false,
+          status: 500,
+          statusText: 'Fetch Error',
+          duration: 0,
+          body: err instanceof Error ? err.message : String(err),
+        };
+      }
     })
     .get('/health', ({ status }) => {
       if (!client.isReady()) {
