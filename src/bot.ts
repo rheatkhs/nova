@@ -59,6 +59,7 @@ export function createBot(deps: BotDeps): Client {
     console.log(`Logged in as ${c.user.tag}`);
     try {
       await c.application.commands.set([
+        { name: 'help', description: 'Show bot commands, capabilities, and active tools' },
         { name: 'reset', description: 'Clear conversation memory for this channel' },
         {
           name: 'prompt',
@@ -96,6 +97,24 @@ export function createBot(deps: BotDeps): Client {
 
 async function handleInteraction(interaction: Interaction, { memory }: BotDeps): Promise<void> {
   if (!interaction.isChatInputCommand()) return;
+  if (interaction.commandName === 'help') {
+    const text = [
+      '**Nova AI Assistant**',
+      '• **Chatting:** Mention me, reply to my messages, DM me, or chat in active threads and designated AI channels.',
+      '• **Attachments:** Upload images for vision analysis or code/text files (`.py`, `.ts`, `.json`, `.log`, etc.) for review.',
+      '',
+      '**Commands:**',
+      '• `/help` - Show this guide',
+      '• `/reset` - Clear conversation history for this channel',
+      '• `/prompt [text]` - View or set custom system prompt for this channel (admins)',
+      '• `/model [name]` - View or switch model for this channel (admins)',
+      '',
+      '**Built-in Tools:**',
+      '• `web_search` 🔎, `wikipedia_search` 🔍, `fetch_page` 🌐, `eval_math` 🔢, `get_current_time` ⏱️, `read_channel_history` 📜',
+    ].join('\n');
+    await interaction.reply({ content: text, flags: MessageFlags.Ephemeral });
+    return;
+  }
   if (interaction.commandName === 'reset') {
     memory.clear(interaction.channelId);
     await interaction.reply({
