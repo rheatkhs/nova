@@ -47,6 +47,24 @@ test('GET /health returns 200 when ready and 503 when not', async () => {
   memory.close();
 });
 
+test('GET /health returns 503 when database is inaccessible', async () => {
+  const brokenMemory = {
+    stats: () => {
+      throw new Error('disk I/O error');
+    },
+  } as unknown as ConversationMemory;
+
+  const app = createServer({
+    client: mockClient(true),
+    memory: brokenMemory,
+    stats: { answered: 0, failed: 0, toolCalls: 0 },
+    model: 'test-model',
+  });
+  const res = await app.handle(new Request('http://localhost/health'));
+  expect(res.status).toBe(503);
+  expect(await res.json()).toEqual({ ok: false, error: 'sqlite database inaccessible' });
+});
+
 test('GET /stats returns full metrics including memory and tool calls', async () => {
   const memory = new ConversationMemory(10, ':memory:');
   memory.append('c1', { role: 'user', content: 'hi' });
