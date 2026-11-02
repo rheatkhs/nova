@@ -23,6 +23,9 @@ export class ConversationMemory {
   readonly #getTemperatureStmt: Statement<{ temperature: number }, [string]>;
   readonly #setTemperatureStmt: Statement<void, [string, number, number]>;
   readonly #clearTemperatureStmt: Statement<void, [string]>;
+  readonly #getLanguageStmt: Statement<{ language: string }, [string]>;
+  readonly #setLanguageStmt: Statement<void, [string, string, number]>;
+  readonly #clearLanguageStmt: Statement<void, [string]>;
 
   constructor(limit: number, path = 'data/nova.db') {
     this.#limit = limit;
@@ -55,6 +58,11 @@ export class ConversationMemory {
       CREATE TABLE IF NOT EXISTS channel_temperatures (
         channel_id TEXT PRIMARY KEY,
         temperature REAL NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS channel_languages (
+        channel_id TEXT PRIMARY KEY,
+        language TEXT NOT NULL,
         updated_at INTEGER NOT NULL
       );
     `);
@@ -91,6 +99,12 @@ export class ConversationMemory {
       ON CONFLICT(channel_id) DO UPDATE SET temperature = excluded.temperature, updated_at = excluded.updated_at
     `);
     this.#clearTemperatureStmt = this.#db.prepare('DELETE FROM channel_temperatures WHERE channel_id = ?');
+    this.#getLanguageStmt = this.#db.prepare('SELECT language FROM channel_languages WHERE channel_id = ?');
+    this.#setLanguageStmt = this.#db.prepare(`
+      INSERT INTO channel_languages (channel_id, language, updated_at) VALUES (?, ?, ?)
+      ON CONFLICT(channel_id) DO UPDATE SET language = excluded.language, updated_at = excluded.updated_at
+    `);
+    this.#clearLanguageStmt = this.#db.prepare('DELETE FROM channel_languages WHERE channel_id = ?');
   }
 
   /**
@@ -160,6 +174,19 @@ export class ConversationMemory {
 
   clearTemperature(channelId: string): void {
     this.#clearTemperatureStmt.run(channelId);
+  }
+
+  getLanguage(channelId: string): string | null {
+    const row = this.#getLanguageStmt.get(channelId);
+    return row?.language ?? null;
+  }
+
+  setLanguage(channelId: string, language: string): void {
+    this.#setLanguageStmt.run(channelId, language, Date.now());
+  }
+
+  clearLanguage(channelId: string): void {
+    this.#clearLanguageStmt.run(channelId);
   }
   stats(): { totalMessages: number; channels: number } {
     const row = this.#db

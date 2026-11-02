@@ -129,6 +129,18 @@ export function createBot(deps: BotDeps): Client {
             },
           ],
         },
+        {
+          name: 'language',
+          description: 'View, set, or clear preferred response language for this channel',
+          options: [
+            {
+              name: 'name',
+              description: 'Language name (e.g. Vietnamese, English, Japanese, or "reset" to clear)',
+              type: 3, // ApplicationCommandOptionType.String
+              required: false,
+            },
+          ],
+        },
       ]);
     } catch (err) {
       console.error('Failed to register slash commands:', err);
@@ -156,6 +168,7 @@ async function handleInteraction(interaction: Interaction, deps: BotDeps): Promi
       '• `/prompt [text]` - View or set custom system prompt for this channel (admins)',
       '• `/model [name]` - View or switch model for this channel (admins)',
       '• `/temperature [value]` - View or set temperature 0.0-2.0 (admins)',
+      '• `/language [name]` - View or set preferred channel language (admins)',
       '',
       '• `web_search` 🔎, `wikipedia_search` 🔍, `fetch_page` 🌐, `eval_math` 🔢, `get_current_time` ⏱️, `read_channel_history` 📜',
     ].join('\n');
@@ -215,12 +228,14 @@ async function handleInteraction(interaction: Interaction, deps: BotDeps): Promi
         const channelPrompt = deps.memory.getPrompt(threadTarget.id) ?? undefined;
         const channelModel = deps.memory.getModel(threadTarget.id) ?? undefined;
         const channelTemperature = deps.memory.getTemperature(threadTarget.id) ?? undefined;
+        const channelLanguage = deps.memory.getLanguage(threadTarget.id) ?? undefined;
         const t0 = Date.now();
         const answer = await withTyping(threadTarget, () =>
           deps.chat([q], {
             model: channelModel,
             systemPrompt: channelPrompt,
             temperature: channelTemperature,
+            language: channelLanguage,
           }),
         );
         deps.stats.lastResponseMs = Date.now() - t0;
@@ -235,11 +250,13 @@ async function handleInteraction(interaction: Interaction, deps: BotDeps): Promi
         const channelPrompt = deps.memory.getPrompt(interaction.channelId) ?? undefined;
         const channelModel = deps.memory.getModel(interaction.channelId) ?? undefined;
         const channelTemperature = deps.memory.getTemperature(interaction.channelId) ?? undefined;
+        const channelLanguage = deps.memory.getLanguage(interaction.channelId) ?? undefined;
         const t0 = Date.now();
         const answer = await deps.chat([q], {
           model: channelModel,
           systemPrompt: channelPrompt,
           temperature: channelTemperature,
+          language: channelLanguage,
         });
         deps.stats.lastResponseMs = Date.now() - t0;
         deps.memory.append(interaction.channelId, q, { role: 'assistant', content: answer });
@@ -405,6 +422,41 @@ async function handleInteraction(interaction: Interaction, deps: BotDeps): Promi
     });
     return;
   }
+  if (interaction.commandName === 'language') {
+    const langStr = interaction.options.getString('name')?.trim();
+    if (!langStr) {
+      const current = deps.memory.getLanguage(interaction.channelId);
+      await interaction.reply({
+        content:
+          current !== null
+            ? `Channel language: \`${current}\``
+            : 'No custom language preset for this channel (responds in conversation language).',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    if (!hasManagePermission(interaction)) {
+      await interaction.reply({
+        content: 'You need "Manage Channels" or "Manage Server" permissions to configure channel language.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    if (langStr.toLowerCase() === 'reset') {
+      deps.memory.clearLanguage(interaction.channelId);
+      await interaction.reply({
+        content: 'Custom channel language cleared (responds in conversation language).',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    deps.memory.setLanguage(interaction.channelId, langStr);
+    await interaction.reply({
+      content: `Custom channel language set to: \`${langStr}\``,
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
 }
 
 /** Returns true if interaction is in DM or member has ManageChannels/ManageGuild. */
@@ -493,12 +545,14 @@ async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueue): Pro
       const channelPrompt = deps.memory.getPrompt(msg.channelId) ?? undefined;
       const channelModel = deps.memory.getModel(msg.channelId) ?? undefined;
       const channelTemperature = deps.memory.getTemperature(msg.channelId) ?? undefined;
+      const channelLanguage = deps.memory.getLanguage(msg.channelId) ?? undefined;
       const t0 = Date.now();
       answer = await withTyping(channel, () =>
         deps.chat([...deps.memory.get(msg.channelId, deps.historyCharLimit), question], {
           model: channelModel,
           systemPrompt: channelPrompt,
           temperature: channelTemperature,
+          language: channelLanguage,
           extraTools: [channelTool],
           onToolStart: (tool) => {
             deps.stats.toolCalls++;

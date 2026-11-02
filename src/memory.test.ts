@@ -117,6 +117,24 @@ test('getTemperature and setTemperature persist custom channel temperature', () 
   mem.close();
 });
 
+test('getLanguage and setLanguage persist custom channel language', () => {
+  const mem = new ConversationMemory(10, ':memory:');
+  expect(mem.getLanguage('c1')).toBeNull();
+
+  mem.setLanguage('c1', 'Vietnamese');
+  expect(mem.getLanguage('c1')).toBe('Vietnamese');
+  expect(mem.getLanguage('c2')).toBeNull();
+
+  // Overwrite
+  mem.setLanguage('c1', 'Japanese');
+  expect(mem.getLanguage('c1')).toBe('Japanese');
+
+  // Clear
+  mem.clearLanguage('c1');
+  expect(mem.getLanguage('c1')).toBeNull();
+  mem.close();
+});
+
 test('trimToBudget preserves newest messages within character limit', () => {
   const msgs = [
     { role: 'user' as const, content: 'aaaa' }, // 4 chars
