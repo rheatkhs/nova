@@ -215,6 +215,7 @@ Nova features 13 built-in zero-dependency tools running inside a multi-step agen
 | `generate_image` | 🎨 | Generates AI artwork and realistic photos with custom aspect ratios |
 | `create_reminder` | ⏰ | Schedules automated reminder timer pings back to the channel |
 | `test_webhook` | 📡 | Tests external HTTP endpoints and simulates webhook deliveries with latency stats |
+| `run_code` | ⚡ | Executes isolated JavaScript/TypeScript snippets in Bun with timeout limits |
 | `eval_math` | 🔢 | Safe recursive-descent math evaluator (+, -, *, /, %, ^, sqrt, trig, logs, constants) |
 | `read_channel_history` | 📜 | Reads recent chat messages in the active channel (contextual tool) |
 

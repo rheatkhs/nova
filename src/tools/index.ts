@@ -11,6 +11,7 @@ import { createPollTool } from './poll.ts';
 import { createQuizTool } from './quiz.ts';
 import { generateImageTool } from './image.ts';
 import { testWebhookTool } from './webhook.ts';
+import { runCodeTool } from './repl.ts';
 
 export * from './types.ts';
 export * from './time.ts';
@@ -27,6 +28,7 @@ export * from './image.ts';
 export * from './webhook.ts';
 export * from './channel-history.ts';
 export * from './reminder.ts';
+export * from './repl.ts';
 
 export const defaultTools: readonly Tool[] = [
   getCurrentTimeTool,
@@ -41,4 +43,5 @@ export const defaultTools: readonly Tool[] = [
   createQuizTool,
   generateImageTool,
   testWebhookTool,
+  runCodeTool,
 ];
