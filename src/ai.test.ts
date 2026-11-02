@@ -87,6 +87,33 @@ test('createChat allows overriding model per-call', async () => {
   }
 });
 
+test('createChat passes temperature in body when specified', async () => {
+  let receivedTemp: number | undefined;
+  const server = Bun.serve({
+    port: 3945,
+    async fetch(req) {
+      const body = (await req.json()) as { temperature?: number };
+      receivedTemp = body.temperature;
+      return Response.json({
+        choices: [{ message: { role: 'assistant', content: 'cool' } }],
+      });
+    },
+  });
+
+  try {
+    const chat = createChat({
+      baseUrl: 'http://127.0.0.1:3945/v1',
+      apiKey: undefined,
+      model: 'test-model',
+      systemPrompt: 'sys',
+    });
+    await chat([{ role: 'user', content: 'code' }], { temperature: 0.2 });
+    expect(receivedTemp).toBe(0.2);
+  } finally {
+    server.stop();
+  }
+});
+
 test('createChat executes tool call and returns final reply', async () => {
   let step = 0;
   const server = Bun.serve({
