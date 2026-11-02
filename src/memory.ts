@@ -30,6 +30,8 @@ export class ConversationMemory {
   readonly #setVoiceStmt: Statement<void, [string, string, number]>;
   readonly #clearVoiceStmt: Statement<void, [string]>;
   readonly #replaceAssistantStmt: Statement<void, [string, string]>;
+  readonly #getDetailedStmt: Statement<{ id: number; role: string; content: string; created_at: number }, [string, number]>;
+  readonly #deleteByIdStmt: Statement<void, [number]>;
 
   constructor(limit: number, path = 'data/nova.db') {
     this.#limit = limit;
@@ -125,8 +127,11 @@ export class ConversationMemory {
         SELECT id FROM messages WHERE channel_id = ? AND role = 'assistant' ORDER BY id DESC LIMIT 1
       )
     `);
+    this.#getDetailedStmt = this.#db.prepare(`
+      SELECT id, role, content, created_at FROM messages WHERE channel_id = ? ORDER BY id ASC LIMIT ?
+    `);
+    this.#deleteByIdStmt = this.#db.prepare('DELETE FROM messages WHERE id = ?');
   }
-
   /**
    * Returns recent messages for a channel. If maxCharacters is specified,
    * trims older messages from the head until the total character length fits.
@@ -158,6 +163,15 @@ export class ConversationMemory {
 
   replaceLastAssistant(key: string, content: string): void {
     this.#replaceAssistantStmt.run(content, key);
+  }
+
+  getDetailedHistory(key: string, limit = 50): Array<{ id: number; role: string; content: string; created_at: number }> {
+    return this.#getDetailedStmt.all(key, limit);
+  }
+
+  deleteMessageById(id: number): boolean {
+    const res = this.#deleteByIdStmt.run(id);
+    return res.changes > 0;
   }
 
   getPrompt(channelId: string): string | null {

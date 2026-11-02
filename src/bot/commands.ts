@@ -81,6 +81,19 @@ export const BOT_COMMANDS: readonly ApplicationCommandDataResolvable[] = [
     ],
   },
   {
+    name: 'language',
+    description: 'View, set, or clear preferred response language for this channel',
+    options: [
+      {
+        name: 'name',
+        description: 'Language name (e.g. Vietnamese, English, Japanese, or "reset" to clear)',
+        type: 3, // ApplicationCommandOptionType.String
+        required: false,
+        autocomplete: true,
+      },
+    ],
+  },
+  {
     name: 'voice',
     description: 'View, set, or clear preferred TTS voice locale for this channel',
     options: [
@@ -90,6 +103,22 @@ export const BOT_COMMANDS: readonly ApplicationCommandDataResolvable[] = [
         type: 3, // ApplicationCommandOptionType.String
         required: false,
         autocomplete: true,
+      },
+    ],
+  },
+  {
+    name: 'memory',
+    description: 'Inspect or surgically prune SQLite conversation memory for this channel (admins)',
+    options: [
+      {
+        name: 'action',
+        description: 'Memory action to perform',
+        type: 3, // ApplicationCommandOptionType.String
+        required: true,
+        choices: [
+          { name: 'View messages', value: 'view' },
+          { name: 'Inspect database stats', value: 'inspect' },
+        ],
       },
     ],
   },
