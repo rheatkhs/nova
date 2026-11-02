@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import type { Client } from 'discord.js';
 import { createServer } from './server.ts';
 import { ConversationMemory } from './memory.ts';
+import { renderHtmlTool } from './tools.ts';
 
 interface StatsResponse {
   ready: boolean;
@@ -156,5 +157,29 @@ test('GET / renders HTML dark-mode dashboard', async () => {
   expect(html).toContain('ag/gemini-3.8-flash');
   expect(html).toContain('Questions Answered');
   expect(html).toContain('20');
+  memory.close();
+});
+
+test('GET /view/:id serves sandbox snippet HTML and 404 when missing', async () => {
+  const memory = new ConversationMemory(10, ':memory:');
+  const app = createServer({
+    client: mockClient(true),
+    memory,
+    stats: { answered: 0, failed: 0, toolCalls: 0, consecutiveFailures: 0, lastResponseMs: 0 },
+    model: 'test-model',
+  });
+
+  // Missing snippet
+  const resNotFound = await app.handle(new Request('http://localhost/view/nonexistent-id'));
+  expect(resNotFound.status).toBe(404);
+
+  // Stored snippet via tool
+  const out = await renderHtmlTool.execute({ title: 'Game', html: '<h1>Pong</h1>' });
+  const id = out.match(/\/view\/([a-z0-9]+)/)![1];
+
+  const resFound = await app.handle(new Request(`http://localhost/view/${id}`));
+  expect(resFound.status).toBe(200);
+  expect(resFound.headers.get('Content-Type')).toContain('text/html');
+  expect(await resFound.text()).toContain('<h1>Pong</h1>');
   memory.close();
 });

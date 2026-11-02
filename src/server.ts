@@ -3,6 +3,7 @@ import { Elysia } from 'elysia';
 import type { BotStats } from './bot.ts';
 import type { ConversationMemory } from './memory.ts';
 import { renderDashboard } from './dashboard.ts';
+import { getSandboxSnippet } from './tools.ts';
 
 export interface ServerDeps {
   client: Client;
@@ -30,6 +31,14 @@ export function createServer({ client, memory, stats, model }: ServerDeps) {
         totalMessages: memStats.totalMessages,
         channels: memStats.channels,
       });
+    })
+    .get('/view/:id', ({ params, set, status }) => {
+      const snippet = getSandboxSnippet(params.id);
+      if (!snippet) {
+        return status(404, 'Preview not found or expired.');
+      }
+      set.headers['Content-Type'] = 'text/html; charset=utf-8';
+      return snippet.html;
     })
     .get('/health', ({ status }) => {
       if (!client.isReady()) {
