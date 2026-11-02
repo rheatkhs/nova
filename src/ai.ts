@@ -19,7 +19,7 @@ export interface ChatRunOptions {
   language?: string;
   extraTools?: readonly Tool[];
   now?: Date;
-  onToolStart?: (toolName: string) => Promise<void> | void;
+  onToolStart?: (toolName: string, step: number) => Promise<void> | void;
 }
 
 /** Sends a conversation to the model and resolves with its reply. */
@@ -156,7 +156,7 @@ export function createChat({
         const toolResults = await Promise.all(
           toolCalls.map(async (call) => {
             try {
-              await options?.onToolStart?.(call.function.name);
+              await options?.onToolStart?.(call.function.name, step + 1);
             } catch {}
             const tool = toolMap.get(call.function.name);
             let output: string;
