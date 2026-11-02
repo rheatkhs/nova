@@ -188,7 +188,8 @@ export async function handleButton(interaction: ButtonInteraction, deps: BotDeps
         content: '🔊 **Voice Readout:**',
         files: [file],
       });
-    } catch {
+    } catch (err) {
+      console.error('TTS error:', err);
       await interaction.editReply({
         content: 'Could not generate speech audio at this time.',
       });
