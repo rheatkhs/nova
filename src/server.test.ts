@@ -108,3 +108,31 @@ test('GET /stats returns full metrics including memory and tool calls', async ()
   expect(data.memory).toEqual({ totalMessages: 1, channels: 1 });
   memory.close();
 });
+
+test('GET /metrics returns Prometheus formatted exposition text', async () => {
+  const memory = new ConversationMemory(10, ':memory:');
+  memory.append('c1', { role: 'user', content: 'test' });
+
+  const app = createServer({
+    client: mockClient(true, 5, 20),
+    memory,
+    stats: { answered: 15, failed: 1, toolCalls: 8, consecutiveFailures: 0, lastResponseMs: 250 },
+    model: 'gpt-4o-mini',
+  });
+
+  const res = await app.handle(new Request('http://localhost/metrics'));
+  expect(res.status).toBe(200);
+  expect(res.headers.get('Content-Type')).toContain('text/plain');
+
+  const text = await res.text();
+  expect(text).toContain('nova_ready 1');
+  expect(text).toContain('nova_guilds_count 5');
+  expect(text).toContain('nova_ping_ms 20');
+  expect(text).toContain('nova_messages_answered_total 15');
+  expect(text).toContain('nova_messages_failed_total 1');
+  expect(text).toContain('nova_tool_calls_total 8');
+  expect(text).toContain('nova_last_response_ms 250');
+  expect(text).toContain('nova_memory_messages_total 1');
+  expect(text).toContain('nova_memory_channels_total 1');
+  memory.close();
+});
