@@ -817,6 +817,7 @@ async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueue): Pro
     const channelTemperature = deps.memory.getTemperature(msg.channelId) ?? undefined;
     const channelLanguage = deps.memory.getLanguage(msg.channelId) ?? undefined;
     const toolsUsed: string[] = [];
+    let statusMsg: Message | null = null;
     let answer: string;
     try {
       const t0 = Date.now();
@@ -827,15 +828,29 @@ async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueue): Pro
           temperature: channelTemperature,
           language: channelLanguage,
           extraTools: [channelTool],
-          onToolStart: (tool) => {
+          onToolStart: (tool, step) => {
             toolsUsed.push(tool);
             deps.stats.toolCalls++;
             void msg.react(toolEmoji(tool)).catch(() => {});
+            const statusText = `*⏳ [Step ${step}] ${toolEmoji(tool)} ${toolLabel(tool)}...*`;
+            if (!statusMsg) {
+              msg.reply({ content: statusText, allowedMentions: NO_PINGS })
+                .then((m) => { statusMsg = m; })
+                .catch(() => {});
+            } else {
+              statusMsg.edit({ content: statusText, allowedMentions: NO_PINGS }).catch(() => {});
+            }
           },
         }),
       );
       deps.stats.lastResponseMs = Date.now() - t0;
+      if (statusMsg) {
+        await (statusMsg as Message).delete().catch(() => {});
+      }
     } catch (err) {
+      if (statusMsg) {
+        await (statusMsg as Message).delete().catch(() => {});
+      }
       deps.stats.failed++;
       deps.stats.consecutiveFailures++;
       console.error(err);
