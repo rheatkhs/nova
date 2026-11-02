@@ -1,11 +1,11 @@
 # Nova
 
-AI agent Discord bot. Answers when mentioned, replied to, DMed, in configured channels, or in active threads. Supports image vision, text/code file attachments, and tools. Use `/help` for commands guide, `/stats` for live metrics, `/reset` to clear memory, `/export` to download chat history, `/prompt` to set per-channel personas, `/model` to switch models, and `/temperature` to adjust creativity per channel.
+AI agent Discord bot. Answers when mentioned, replied to, DMed, in configured channels, or in active threads. Supports image vision, text/code file attachments, and tools. Use `/help` for commands guide, `/stats` for live metrics, `/ask-thread` to spawn dedicated discussion threads, `/reset` to clear memory, `/export` to download chat history, `/prompt` to set per-channel personas, `/model` to switch models, and `/temperature` to adjust creativity per channel.
 
 ## Setup
 
 1. Create an app at https://discord.com/developers/applications. In **Bot**, copy the token and enable **Message Content Intent**.
-2. Invite the bot: **OAuth2 > URL Generator**, scopes `bot` and `applications.commands` (for `/help`, `/stats`, `/reset`, `/export`, `/prompt`, `/model`, `/temperature`), permissions `Send Messages`, `Read Message History`.
+2. Invite the bot: **OAuth2 > URL Generator**, scopes `bot` and `applications.commands` (for `/help`, `/stats`, `/ask-thread`, `/reset`, `/export`, `/prompt`, `/model`, `/temperature`), permissions `Send Messages`, `Read Message History`, `Create Public Threads`, `Send Messages in Threads`.
 3. `cp .env.example .env` and fill in `DISCORD_TOKEN`, `AI_API_KEY`, and `AI_MODEL`. Any OpenAI-compatible API works, including local Ollama with `AI_BASE_URL=http://localhost:11434/v1`.
 4. `bun install && bun start`
 

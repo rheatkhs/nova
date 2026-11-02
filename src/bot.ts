@@ -62,6 +62,18 @@ export function createBot(deps: BotDeps): Client {
       await c.application.commands.set([
         { name: 'help', description: 'Show bot commands, capabilities, and active tools' },
         { name: 'stats', description: 'View live bot operational metrics, model, and memory stats' },
+        {
+          name: 'ask-thread',
+          description: 'Ask Nova a question and create a dedicated discussion thread for the answer',
+          options: [
+            {
+              name: 'question',
+              description: 'Your question or topic to discuss in a new thread',
+              type: 3, // ApplicationCommandOptionType.String
+              required: true,
+            },
+          ],
+        },
         { name: 'reset', description: 'Clear conversation memory for this channel' },
         {
           name: 'export',
@@ -136,12 +148,13 @@ async function handleInteraction(interaction: Interaction, deps: BotDeps): Promi
       '**Commands:**',
       '• `/help` - Show this guide',
       '• `/stats` - View live bot operational metrics and memory',
+      '• `/ask-thread [question]` - Ask and start a dedicated discussion thread',
       '• `/reset` - Clear conversation history for this channel',
       '• `/export [format]` - Download channel conversation history (.md or .json)',
       '• `/prompt [text]` - View or set custom system prompt for this channel (admins)',
       '• `/model [name]` - View or switch model for this channel (admins)',
       '• `/temperature [value]` - View or set temperature 0.0-2.0 (admins)',
-      '**Built-in Tools:**',
+      '',
       '• `web_search` 🔎, `wikipedia_search` 🔍, `fetch_page` 🌐, `eval_math` 🔢, `get_current_time` ⏱️, `read_channel_history` 📜',
     ].join('\n');
     await interaction.reply({ content: text, flags: MessageFlags.Ephemeral });
@@ -164,6 +177,72 @@ async function handleInteraction(interaction: Interaction, deps: BotDeps): Promi
       `• **SQLite Memory:** ${memStats.totalMessages} messages across ${memStats.channels} channels`,
     ];
     await interaction.reply({ content: lines.join('\n'), flags: MessageFlags.Ephemeral });
+    return;
+  }
+  if (interaction.commandName === 'ask-thread') {
+    const question = interaction.options.getString('question', true).trim();
+    if (!deps.rateLimiter.check(interaction.user.id)) {
+      await interaction.reply({
+        content: '⏳ You are sending requests too quickly. Please wait a moment.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    await interaction.deferReply();
+    const q: ChatMessage = { role: 'user', content: `${interaction.user.displayName}: ${question}` };
+
+    let threadTarget: SendableChannels | null = null;
+    if (interaction.inGuild() && !interaction.channel?.isThread()) {
+      try {
+        const replyMsg = await interaction.fetchReply();
+        threadTarget = await replyMsg.startThread({
+          name: question.slice(0, 90),
+          autoArchiveDuration: 1440,
+        });
+      } catch {}
+    }
+
+    try {
+      if (threadTarget) {
+        await interaction.editReply({
+          content: `💬 Created thread: <#${threadTarget.id}>\n**Question:** ${question}`,
+          allowedMentions: NO_PINGS,
+        });
+        const channelPrompt = deps.memory.getPrompt(threadTarget.id) ?? undefined;
+        const channelModel = deps.memory.getModel(threadTarget.id) ?? undefined;
+        const channelTemperature = deps.memory.getTemperature(threadTarget.id) ?? undefined;
+        const answer = await withTyping(threadTarget, () =>
+          deps.chat([q], {
+            model: channelModel,
+            systemPrompt: channelPrompt,
+            temperature: channelTemperature,
+          }),
+        );
+        deps.memory.append(threadTarget.id, q, { role: 'assistant', content: answer });
+        const parts = chunk(answer);
+        for (const part of parts) {
+          await threadTarget.send({ content: part, allowedMentions: NO_PINGS });
+        }
+        deps.stats.answered++;
+      } else {
+        const channelPrompt = deps.memory.getPrompt(interaction.channelId) ?? undefined;
+        const channelModel = deps.memory.getModel(interaction.channelId) ?? undefined;
+        const channelTemperature = deps.memory.getTemperature(interaction.channelId) ?? undefined;
+        const answer = await deps.chat([q], {
+          model: channelModel,
+          systemPrompt: channelPrompt,
+          temperature: channelTemperature,
+        });
+        deps.memory.append(interaction.channelId, q, { role: 'assistant', content: answer });
+        await interaction.editReply({ content: answer.slice(0, 2000), allowedMentions: NO_PINGS });
+        deps.stats.answered++;
+      }
+    } catch (err) {
+      deps.stats.failed++;
+      console.error(err);
+      await interaction.editReply({ content: 'AI request failed, try again later.', allowedMentions: NO_PINGS });
+    }
     return;
   }
   if (interaction.commandName === 'reset') {
