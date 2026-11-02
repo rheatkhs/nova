@@ -285,7 +285,7 @@ async function handleInteraction(interaction: Interaction, deps: BotDeps): Promi
       '• `/temperature [value]` - View or set temperature 0.0-2.0 (admins)',
       '• `/language [name]` - View or set preferred channel language (admins)',
       '',
-      '• `web_search` 🔎, `wikipedia_search` 🔍, `fetch_page` 🌐, `render_chart` 📊, `render_diagram` 📐, `render_html` 💻, `generate_image` 🎨, `create_poll` 🗳️, `create_reminder` ⏰, `eval_math` 🔢, `get_current_time` ⏱️, `read_channel_history` 📜',
+      '• `web_search` 🔎, `wikipedia_search` 🔍, `fetch_page` 🌐, `render_chart` 📊, `render_diagram` 📐, `render_html` 💻, `generate_image` 🎨, `create_poll` 🗳️, `create_reminder` ⏰, `test_webhook` 📡, `eval_math` 🔢, `get_current_time` ⏱️, `read_channel_history` 📜',
     ].join('\n');
     await interaction.reply({ content: text, flags: MessageFlags.Ephemeral });
     return;
@@ -1332,6 +1332,8 @@ export function toolEmoji(toolName: string): string {
       return '🎨';
     case 'render_diagram':
       return '📐';
+    case 'test_webhook':
+      return '📡';
     case 'create_reminder':
       return '⏰';
     default:
@@ -1358,6 +1360,8 @@ export function toolLabel(toolName: string): string {
       return 'Generating AI artwork';
     case 'render_diagram':
       return 'Rendering Mermaid diagram';
+    case 'test_webhook':
+      return 'Testing API webhook';
     case 'eval_math':
       return 'Evaluating calculation';
     case 'create_reminder':

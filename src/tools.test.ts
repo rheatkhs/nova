@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { createChannelHistoryTool, createPollTool, createQuizTool, createReminderTool, evalMathTool, evaluateMath, fetchPageTool, generateImageTool, getCurrentTimeTool, getQuizItem, getSandboxSnippet, renderChartTool, renderDiagramTool, renderHtmlTool, webSearchTool, wikipediaSearchTool } from './tools.ts';
+import { createChannelHistoryTool, createPollTool, createQuizTool, createReminderTool, evalMathTool, evaluateMath, fetchPageTool, generateImageTool, getCurrentTimeTool, getQuizItem, getSandboxSnippet, renderChartTool, renderDiagramTool, renderHtmlTool, testWebhookTool, webSearchTool, wikipediaSearchTool } from './tools.ts';
 
 test('get_current_time returns valid UTC date info', async () => {
   const result = JSON.parse(await getCurrentTimeTool.execute({}));
@@ -269,4 +269,43 @@ test('createReminderTool validates parameters and schedules timer', async () => 
   expect(res).toContain('[Reminder scheduled]');
   expect(res).toContain('10 second(s)');
   expect(res).toContain('Stand up and stretch');
+});
+
+test('testWebhookTool validates URL, restricts loopback addresses, and tests public endpoints', async () => {
+  expect(await testWebhookTool.execute({})).toBe('Error: url is required');
+  expect(await testWebhookTool.execute({ url: 'not-a-valid-url' })).toBe('Error: invalid URL format');
+  expect(await testWebhookTool.execute({ url: 'http://localhost:3000' })).toBe(
+    'Error: local loopback and private network addresses are restricted',
+  );
+  expect(await testWebhookTool.execute({ url: 'http://127.0.0.1:8080' })).toBe(
+    'Error: local loopback and private network addresses are restricted',
+  );
+  expect(await testWebhookTool.execute({ url: 'http://192.168.1.1' })).toBe(
+    'Error: local loopback and private network addresses are restricted',
+  );
+
+  // Mock public server test
+  const origFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    return new Response(JSON.stringify({ status: 'delivered', id: 123 }), {
+      status: 200,
+      statusText: 'OK',
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }) as unknown as typeof fetch;
+
+  try {
+    const res = await testWebhookTool.execute({
+      url: 'https://example.com/api/webhook',
+      method: 'POST',
+      payload: '{"event":"ping"}',
+    });
+    expect(res).toContain('[Webhook Test Result]');
+    expect(res).toContain('200 OK');
+    expect(res).toContain('https://example.com/api/webhook');
+    expect(res).toContain('POST');
+    expect(res).toContain('delivered');
+  } finally {
+    globalThis.fetch = origFetch;
+  }
 });
