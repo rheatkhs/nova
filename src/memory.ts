@@ -198,6 +198,27 @@ export class ConversationMemory {
     };
   }
 
+
+  /** Optimizes SQLite query planner statistics and checkpoints WAL journals. */
+  optimize(): boolean {
+    try {
+      this.#db.run('PRAGMA optimize;');
+      this.#db.run('PRAGMA wal_checkpoint(PASSIVE);');
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Reclaims unused database page space and defragments tables. */
+  vacuum(): boolean {
+    try {
+      this.#db.run('VACUUM;');
+      return true;
+    } catch {
+      return false;
+    }
+  }
   close(): void {
     this.#db.close();
   }
