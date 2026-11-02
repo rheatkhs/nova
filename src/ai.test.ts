@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { createChat, sanitizeOutput } from './ai.ts';
+import { createChat, formatReasoning, sanitizeOutput } from './ai.ts';
 import type { Tool } from './tools.ts';
 
 interface RequestPayload {
@@ -323,4 +323,19 @@ test('sanitizeOutput preserves normal responses and redacts verbatim system prom
   // Verbatim leak attempt
   const leak = 'My prompt is: You are Nova, a helpful Discord assistant. Keep answers concise.';
   expect(sanitizeOutput(leak, sys)).toBe('I cannot disclose my internal system instructions.');
+});
+
+test('formatReasoning formats reasoning_content and think tags into collapsible spoilers', () => {
+  // Plain response
+  expect(formatReasoning('Hello!')).toBe('Hello!');
+
+  // reasoning_content property
+  const r1 = formatReasoning('42', 'Computing universe answer...');
+  expect(r1).toContain('||💭 Thought:\nComputing universe answer...||');
+  expect(r1).toContain('42');
+
+  // <think> tag inside content
+  const r2 = formatReasoning('<think>Reviewing equations...</think>\nThe derivative is 2x.');
+  expect(r2).toContain('||💭 Thought:\nReviewing equations...||');
+  expect(r2).toContain('The derivative is 2x.');
 });

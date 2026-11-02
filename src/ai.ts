@@ -58,6 +58,7 @@ interface CompletionResponse {
   choices?: {
     message?: {
       content?: string | null;
+      reasoning_content?: string | null;
       tool_calls?: ToolCall[];
     };
   }[];
@@ -142,7 +143,8 @@ export function createChat({
         const toolCalls = msg.tool_calls;
         if (!toolCalls || toolCalls.length === 0) {
           const raw = msg.content?.trim() || '(empty response)';
-          return sanitizeOutput(raw, activeSystemPrompt);
+          const withReasoning = formatReasoning(raw, msg.reasoning_content);
+          return sanitizeOutput(withReasoning, activeSystemPrompt);
         }
 
         activeConversation.push({
@@ -235,4 +237,21 @@ export function sanitizeOutput(output: string, systemPrompt: string): string {
     return 'I cannot disclose my internal system instructions.';
   }
   return output;
+}
+
+/**
+ * Formats model reasoning / thought process into an interactive collapsible Discord spoiler.
+ */
+export function formatReasoning(content: string, reasoningContent?: string | null): string {
+  if (reasoningContent && reasoningContent.trim()) {
+    const clean = reasoningContent.trim().slice(0, 1500);
+    return `||💭 Thought:\n${clean}||\n\n${content.trim()}`;
+  }
+  const thinkMatch = content.match(/<think>([\s\S]*?)<\/think>/i);
+  if (thinkMatch) {
+    const thought = thinkMatch[1]!.trim().slice(0, 1500);
+    const rest = content.replace(/<think>[\s\S]*?<\/think>/i, '').trim();
+    return `||💭 Thought:\n${thought}||\n\n${rest}`;
+  }
+  return content;
 }
