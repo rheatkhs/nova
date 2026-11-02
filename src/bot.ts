@@ -950,7 +950,7 @@ async function sendAnswer(
   const footer = formatFooter(meta);
   const parts = chunk(answer);
   const canThread = msg.inGuild() && !msg.channel.isThread();
-  const row = buildActionRow(msg.author.id, canThread);
+  const row = buildActionRow(msg.author.id, canThread, /```[a-zA-Z0-9_-]*\n[\s\S]*?\n```/.test(answer));
 
   if (parts.length <= 2) {
     const [first, second] = parts;
@@ -974,7 +974,7 @@ async function sendAnswer(
   });
 }
 
-function buildActionRow(authorId: string, canThread: boolean) {
+function buildActionRow(authorId: string, canThread: boolean, withCode = false) {
   const row = new ActionRowBuilder<ButtonBuilder>();
   if (canThread) {
     row.addComponents(
@@ -982,6 +982,15 @@ function buildActionRow(authorId: string, canThread: boolean) {
         .setCustomId(`thread:${authorId}`)
         .setLabel('Thread')
         .setEmoji('🧵')
+        .setStyle(ButtonStyle.Secondary),
+    );
+  }
+  if (withCode) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId('code')
+        .setLabel('Code')
+        .setEmoji('📥')
         .setStyle(ButtonStyle.Secondary),
     );
   }
@@ -1060,6 +1069,26 @@ async function handleButton(interaction: ButtonInteraction, deps: BotDeps): Prom
     }
     return;
   }
+  if (interaction.customId === 'code') {
+    const text = interaction.message.content || '';
+    const snippet = extractCodeSnippet(text);
+    if (!snippet) {
+      await interaction.reply({
+        content: 'No code block found in this response.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    const file = new AttachmentBuilder(Buffer.from(snippet.code, 'utf-8'), {
+      name: `snippet.${snippet.ext}`,
+    });
+    await interaction.reply({
+      content: `📥 Extracted source code file (\`snippet.${snippet.ext}\`):`,
+      files: [file],
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
   const [action, authorId] = interaction.customId.split(':');
   if (action === 'regen' && authorId) {
     const isAuthor = interaction.user.id === authorId;
@@ -1126,7 +1155,7 @@ async function handleButton(interaction: ButtonInteraction, deps: BotDeps): Prom
       });
       const parts = chunk(answer);
       const canThread = interaction.inGuild() && !interaction.channel?.isThread();
-      const row = buildActionRow(authorId, canThread);
+      const row = buildActionRow(authorId, canThread, /```[a-zA-Z0-9_-]*\n[\s\S]*?\n```/.test(answer));
 
       await interaction.editReply({
         content: `${parts[0] ?? ''}${footer}`,
@@ -1231,4 +1260,27 @@ export function toolLabel(toolName: string): string {
     default:
       return 'Running tool';
   }
+}
+
+const CODE_EXTENSIONS: Record<string, string> = {
+  python: 'py',
+  typescript: 'ts',
+  javascript: 'js',
+  bash: 'sh',
+  shell: 'sh',
+  rust: 'rs',
+  golang: 'go',
+  cplusplus: 'cpp',
+  cpp: 'cpp',
+  markdown: 'md',
+};
+
+/** Extracts the first markdown code block and maps language tag to file extension. */
+export function extractCodeSnippet(text: string): { code: string; ext: string } | null {
+  const match = text.match(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)\n```/);
+  if (!match) return null;
+  const rawLang = (match[1] || 'txt').toLowerCase();
+  const code = match[2]!.trim();
+  const ext = CODE_EXTENSIONS[rawLang] || rawLang || 'txt';
+  return { code, ext };
 }
