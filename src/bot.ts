@@ -61,6 +61,7 @@ export function createBot(deps: BotDeps): Client {
     try {
       await c.application.commands.set([
         { name: 'help', description: 'Show bot commands, capabilities, and active tools' },
+        { name: 'stats', description: 'View live bot operational metrics, model, and memory stats' },
         { name: 'reset', description: 'Clear conversation memory for this channel' },
         {
           name: 'prompt',
@@ -96,7 +97,7 @@ export function createBot(deps: BotDeps): Client {
   return client;
 }
 
-async function handleInteraction(interaction: Interaction, { memory }: BotDeps): Promise<void> {
+async function handleInteraction(interaction: Interaction, deps: BotDeps): Promise<void> {
   if (!interaction.isChatInputCommand()) return;
   if (interaction.commandName === 'help') {
     const text = [
@@ -106,6 +107,7 @@ async function handleInteraction(interaction: Interaction, { memory }: BotDeps):
       '',
       '**Commands:**',
       '• `/help` - Show this guide',
+      '• `/stats` - View live bot operational metrics and memory',
       '• `/reset` - Clear conversation history for this channel',
       '• `/prompt [text]` - View or set custom system prompt for this channel (admins)',
       '• `/model [name]` - View or switch model for this channel (admins)',
@@ -116,8 +118,27 @@ async function handleInteraction(interaction: Interaction, { memory }: BotDeps):
     await interaction.reply({ content: text, flags: MessageFlags.Ephemeral });
     return;
   }
+  if (interaction.commandName === 'stats') {
+    const memStats = deps.memory.stats();
+    const uptimeSec = Math.floor(process.uptime());
+    const uptimeHours = (uptimeSec / 3600).toFixed(1);
+    const channelModel = deps.memory.getModel(interaction.channelId);
+    const lines = [
+      '**Nova System Stats**',
+      `• **Status:** Connected (${interaction.client.ws.ping}ms gateway ping)`,
+      `• **Uptime:** ${uptimeSec}s (~${uptimeHours}h)`,
+      `• **Servers:** ${interaction.client.guilds.cache.size}`,
+      `• **Active Model:** \`${channelModel ?? 'global default'}\``,
+      `• **Questions Answered:** ${deps.stats.answered}`,
+      `• **Questions Failed:** ${deps.stats.failed}`,
+      `• **Tool Executions:** ${deps.stats.toolCalls}`,
+      `• **SQLite Memory:** ${memStats.totalMessages} messages across ${memStats.channels} channels`,
+    ];
+    await interaction.reply({ content: lines.join('\n'), flags: MessageFlags.Ephemeral });
+    return;
+  }
   if (interaction.commandName === 'reset') {
-    memory.clear(interaction.channelId);
+    deps.memory.clear(interaction.channelId);
     await interaction.reply({
       content: 'Conversation memory cleared for this channel.',
       flags: MessageFlags.Ephemeral,
@@ -127,7 +148,7 @@ async function handleInteraction(interaction: Interaction, { memory }: BotDeps):
   if (interaction.commandName === 'prompt') {
     const text = interaction.options.getString('text')?.trim();
     if (!text) {
-      const current = memory.getPrompt(interaction.channelId);
+      const current = deps.memory.getPrompt(interaction.channelId);
       await interaction.reply({
         content: current ? `Channel prompt: "${current}"` : 'No custom prompt set for this channel (using global default).',
         flags: MessageFlags.Ephemeral,
@@ -142,14 +163,14 @@ async function handleInteraction(interaction: Interaction, { memory }: BotDeps):
       return;
     }
     if (text.toLowerCase() === 'reset') {
-      memory.clearPrompt(interaction.channelId);
+      deps.memory.clearPrompt(interaction.channelId);
       await interaction.reply({
         content: 'Custom channel prompt cleared (reverted to global default).',
         flags: MessageFlags.Ephemeral,
       });
       return;
     }
-    memory.setPrompt(interaction.channelId, text);
+    deps.memory.setPrompt(interaction.channelId, text);
     await interaction.reply({
       content: `Custom channel prompt set: "${text}"`,
       flags: MessageFlags.Ephemeral,
@@ -159,7 +180,7 @@ async function handleInteraction(interaction: Interaction, { memory }: BotDeps):
   if (interaction.commandName === 'model') {
     const name = interaction.options.getString('name')?.trim();
     if (!name) {
-      const current = memory.getModel(interaction.channelId);
+      const current = deps.memory.getModel(interaction.channelId);
       await interaction.reply({
         content: current ? `Channel model: \`${current}\`` : 'No custom model set for this channel (using global default).',
         flags: MessageFlags.Ephemeral,
@@ -174,14 +195,14 @@ async function handleInteraction(interaction: Interaction, { memory }: BotDeps):
       return;
     }
     if (name.toLowerCase() === 'reset') {
-      memory.clearModel(interaction.channelId);
+      deps.memory.clearModel(interaction.channelId);
       await interaction.reply({
         content: 'Custom channel model cleared (reverted to global default).',
         flags: MessageFlags.Ephemeral,
       });
       return;
     }
-    memory.setModel(interaction.channelId, name);
+    deps.memory.setModel(interaction.channelId, name);
     await interaction.reply({
       content: `Custom channel model set to: \`${name}\``,
       flags: MessageFlags.Ephemeral,
