@@ -18,6 +18,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       baseUrl: env.AI_BASE_URL || 'https://api.openai.com/v1',
       apiKey: env.AI_API_KEY || undefined,
       model: env.AI_MODEL || 'gpt-4o-mini',
+      fallbackModel: env.AI_FALLBACK_MODEL?.trim() || undefined,
       systemPrompt: env.SYSTEM_PROMPT || 'You are Nova, a helpful Discord assistant. Keep answers concise.',
     },
     aiChannels: new Set((env.AI_CHANNELS ?? '').split(',').map((s) => s.trim()).filter(Boolean)),

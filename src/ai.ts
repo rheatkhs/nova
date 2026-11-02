@@ -13,6 +13,7 @@ export interface ChatMessage {
 
 export interface ChatRunOptions {
   model?: string;
+  fallbackModel?: string;
   systemPrompt?: string;
   temperature?: number;
   language?: string;
@@ -28,6 +29,7 @@ export interface AiOptions {
   baseUrl: string;
   apiKey: string | undefined;
   model: string;
+  fallbackModel?: string;
   systemPrompt: string;
   tools?: readonly Tool[];
   maxToolSteps?: number;
@@ -66,6 +68,7 @@ export function createChat({
   baseUrl,
   apiKey,
   model,
+  fallbackModel,
   systemPrompt,
   tools = [],
   maxToolSteps = 5,
@@ -100,80 +103,93 @@ export function createChat({
       ...messages.map((m) => ({ role: m.role, content: m.content })),
     ];
 
-    const activeModel = options?.model || model;
-    for (let step = 0; step < maxToolSteps; step++) {
-      const body: Record<string, unknown> = {
-        model: activeModel,
-        stream: false,
-        messages: conversation,
-      };
-      if (options?.temperature !== undefined) {
-        body.temperature = options.temperature;
-      }
-      if (openAiTools) {
-        body.tools = openAiTools;
-        body.tool_choice = 'auto';
-      }
+    const primaryModel = options?.model || model;
+    const fallback = options?.fallbackModel ?? fallbackModel;
 
-      const res = await fetchWithRetry(
-        url,
-        {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(body),
-          signal: AbortSignal.timeout(timeoutMs),
-        },
-        retries,
-        retryDelayMs,
-      );
-      if (!res.ok) throw new Error(`AI request failed (${res.status}): ${(await res.text()).slice(0, 300)}`);
+    async function executeLoop(targetModel: string): Promise<string> {
+      const activeConversation: ApiMessage[] = conversation.map((m) => ({ ...m }));
+      for (let step = 0; step < maxToolSteps; step++) {
+        const body: Record<string, unknown> = {
+          model: targetModel,
+          stream: false,
+          messages: activeConversation,
+        };
+        if (options?.temperature !== undefined) {
+          body.temperature = options.temperature;
+        }
+        if (openAiTools) {
+          body.tools = openAiTools;
+          body.tool_choice = 'auto';
+        }
 
-      const data = (await res.json()) as CompletionResponse;
-      const msg = data.choices?.[0]?.message;
-      if (!msg) return '(empty response)';
+        const res = await fetchWithRetry(
+          url,
+          {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(body),
+            signal: AbortSignal.timeout(timeoutMs),
+          },
+          retries,
+          retryDelayMs,
+        );
+        if (!res.ok) throw new Error(`AI request failed (${res.status}): ${(await res.text()).slice(0, 300)}`);
 
-      const toolCalls = msg.tool_calls;
-      if (!toolCalls || toolCalls.length === 0) {
-        const raw = msg.content?.trim() || '(empty response)';
-        return sanitizeOutput(raw, activeSystemPrompt);
-      }
+        const data = (await res.json()) as CompletionResponse;
+        const msg = data.choices?.[0]?.message;
+        if (!msg) return '(empty response)';
 
-      conversation.push({
-        role: 'assistant',
-        content: msg.content ?? null,
-        tool_calls: toolCalls,
-      });
+        const toolCalls = msg.tool_calls;
+        if (!toolCalls || toolCalls.length === 0) {
+          const raw = msg.content?.trim() || '(empty response)';
+          return sanitizeOutput(raw, activeSystemPrompt);
+        }
 
-      const toolResults = await Promise.all(
-        toolCalls.map(async (call) => {
-          try {
-            await options?.onToolStart?.(call.function.name);
-          } catch {}
-          const tool = toolMap.get(call.function.name);
-          let output: string;
-          if (!tool) {
-            output = `Error: unknown tool "${call.function.name}"`;
-          } else {
-            let args: Record<string, unknown> = {};
+        activeConversation.push({
+          role: 'assistant',
+          content: msg.content ?? null,
+          tool_calls: toolCalls,
+        });
+
+        const toolResults = await Promise.all(
+          toolCalls.map(async (call) => {
             try {
-              args = JSON.parse(call.function.arguments || '{}');
-            } catch {
-              args = {};
+              await options?.onToolStart?.(call.function.name);
+            } catch {}
+            const tool = toolMap.get(call.function.name);
+            let output: string;
+            if (!tool) {
+              output = `Error: unknown tool "${call.function.name}"`;
+            } else {
+              let args: Record<string, unknown> = {};
+              try {
+                args = JSON.parse(call.function.arguments || '{}');
+              } catch {
+                args = {};
+              }
+              try {
+                output = await tool.execute(args);
+              } catch (err) {
+                output = `Tool error: ${err instanceof Error ? err.message : String(err)}`;
+              }
             }
-            try {
-              output = await tool.execute(args);
-            } catch (err) {
-              output = `Tool error: ${err instanceof Error ? err.message : String(err)}`;
-            }
-          }
-          return { role: 'tool' as const, tool_call_id: call.id, content: output };
-        }),
-      );
+            return { role: 'tool' as const, tool_call_id: call.id, content: output };
+          }),
+        );
 
-      conversation.push(...toolResults);
+        activeConversation.push(...toolResults);
+      }
+      return 'Agent reached max tool execution steps.';
     }
 
-    return 'Agent reached max tool execution steps.';
+    try {
+      return await executeLoop(primaryModel);
+    } catch (primaryErr) {
+      if (fallback && fallback !== primaryModel) {
+        return await executeLoop(fallback);
+      }
+      throw primaryErr;
+    }
   };
 }
 
