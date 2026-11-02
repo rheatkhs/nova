@@ -219,7 +219,7 @@ export const fetchPageTool: Tool = {
 export const webSearchTool: Tool = {
   name: 'web_search',
   description:
-    'Search the web using SearXNG or Brave Search. Set SEARXNG_URL (e.g. http://localhost:8080) or BRAVE_API_KEY in .env to enable full web coverage.',
+    'Search the web using SearXNG or Brave Search (falls back to Wikipedia if unconfigured). Set SEARXNG_URL or BRAVE_API_KEY in .env for full web search.',
   parameters: {
     type: 'object',
     properties: {
@@ -240,8 +240,8 @@ export const webSearchTool: Tool = {
     if (searxngUrl) {
       return searchSearxng(query, searxngUrl);
     }
-
-    return 'Error: web search requires either SEARXNG_URL or BRAVE_API_KEY configured in .env. Use wikipedia_search for encyclopedia queries.';
+    const wiki = await wikipediaSearchTool.execute({ query });
+    return `[Note: neither BRAVE_API_KEY nor SEARXNG_URL configured; fell back to Wikipedia]\n\n${wiki}`;
   },
 };
 
