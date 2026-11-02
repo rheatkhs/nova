@@ -4,6 +4,8 @@ import {
   GatewayIntentBits,
   MessageFlags,
   Partials,
+  PermissionFlagsBits,
+  type ChatInputCommandInteraction,
   type Interaction,
   type Message,
   type MessageMentionOptions,
@@ -111,6 +113,13 @@ async function handleInteraction(interaction: Interaction, { memory }: BotDeps):
       });
       return;
     }
+    if (!hasManagePermission(interaction)) {
+      await interaction.reply({
+        content: 'You need "Manage Channels" or "Manage Server" permissions to configure channel prompts.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
     if (text.toLowerCase() === 'reset') {
       memory.clearPrompt(interaction.channelId);
       await interaction.reply({
@@ -136,6 +145,13 @@ async function handleInteraction(interaction: Interaction, { memory }: BotDeps):
       });
       return;
     }
+    if (!hasManagePermission(interaction)) {
+      await interaction.reply({
+        content: 'You need "Manage Channels" or "Manage Server" permissions to configure channel models.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
     if (name.toLowerCase() === 'reset') {
       memory.clearModel(interaction.channelId);
       await interaction.reply({
@@ -150,6 +166,15 @@ async function handleInteraction(interaction: Interaction, { memory }: BotDeps):
       flags: MessageFlags.Ephemeral,
     });
   }
+}
+
+/** Returns true if interaction is in DM or member has ManageChannels/ManageGuild. */
+function hasManagePermission(interaction: ChatInputCommandInteraction): boolean {
+  if (!interaction.inGuild()) return true;
+  return Boolean(
+    interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels) ||
+    interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild),
+  );
 }
 
 async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueue): Promise<void> {
