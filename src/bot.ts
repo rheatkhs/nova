@@ -1,5 +1,6 @@
 import {
   ActionRowBuilder,
+  ActivityType,
   AttachmentBuilder,
   ButtonBuilder,
   ButtonStyle,
@@ -64,6 +65,7 @@ export function createBot(deps: BotDeps): Client {
 
   client.once(Events.ClientReady, async (c) => {
     console.log(`Logged in as ${c.user.tag}`);
+    updatePresence(client, deps.stats);
     try {
       await c.application.commands.set([
         { name: 'help', description: 'Show bot commands, capabilities, and active tools' },
@@ -161,9 +163,23 @@ export function createBot(deps: BotDeps): Client {
       console.error('Failed to register slash commands:', err);
     }
   });
+  client.on(Events.GuildCreate, () => updatePresence(client, deps.stats));
+  client.on(Events.GuildDelete, () => updatePresence(client, deps.stats));
   client.on(Events.MessageCreate, (msg) => void handleMessage(msg, deps, queue).catch(console.error));
   client.on(Events.InteractionCreate, (interaction) => void handleInteraction(interaction, deps).catch(console.error));
   return client;
+}
+
+/** Updates Discord rich presence activity to reflect server count and answers. */
+export function updatePresence(client: Client, stats: BotStats): void {
+  const servers = client.guilds.cache.size;
+  const serverText = servers === 1 ? '1 server' : `${servers} servers`;
+  const answered = stats.answered;
+  const statusText = answered > 0
+    ? `${serverText} • ${answered} answers • /help`
+    : `${serverText} • /help`;
+
+  client.user?.setActivity(statusText, { type: ActivityType.Watching });
 }
 
 async function handleInteraction(interaction: Interaction, deps: BotDeps): Promise<void> {
