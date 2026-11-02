@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { createChannelHistoryTool, createPollTool, evalMathTool, evaluateMath, fetchPageTool, getCurrentTimeTool, getSandboxSnippet, renderChartTool, renderDiagramTool, renderHtmlTool, webSearchTool, wikipediaSearchTool } from './tools.ts';
+import { createChannelHistoryTool, createPollTool, createQuizTool, evalMathTool, evaluateMath, fetchPageTool, getCurrentTimeTool, getQuizItem, getSandboxSnippet, renderChartTool, renderDiagramTool, renderHtmlTool, webSearchTool, wikipediaSearchTool } from './tools.ts';
 
 test('get_current_time returns valid UTC date info', async () => {
   const result = JSON.parse(await getCurrentTimeTool.execute({}));
@@ -197,4 +197,40 @@ test('renderDiagramTool validates syntax and strips code fences', async () => {
   expect(output).toContain('https://mermaid.ink/img/');
   expect(output).toContain('bgColor=181a20');
   expect(output).toContain('```mermaid\ngraph TD\n  Client --> Server\n```');
+});
+
+test('createQuizTool validates options count and correctIndex', async () => {
+  expect(await createQuizTool.execute({ question: '', options: ['A', 'B'], correctIndex: 0 })).toBe(
+    'Error: question is required',
+  );
+  expect(await createQuizTool.execute({ question: 'Q', options: ['A'], correctIndex: 0 })).toBe(
+    'Error: quiz must have between 2 and 4 options',
+  );
+  expect(await createQuizTool.execute({ question: 'Q', options: ['A', 'B'], correctIndex: 5 })).toBe(
+    'Error: correctIndex must be between 0 and 1',
+  );
+});
+
+test('createQuizTool stores quiz in QUIZ_STORE and returns quiz formatted text', async () => {
+  const output = await createQuizTool.execute({
+    question: 'What is 2+2?',
+    options: ['3', '4', '5'],
+    correctIndex: 1,
+    explanation: 'Basic arithmetic: 2 plus 2 equals 4.',
+  });
+
+  expect(output).toContain('[QUIZ:');
+  expect(output).toContain('🧠 **QUIZ: What is 2+2?**');
+  expect(output).toContain('**A.** 3');
+  expect(output).toContain('**B.** 4');
+
+  const idMatch = output.match(/\[QUIZ:([a-z0-9]+)\]/);
+  expect(idMatch).not.toBeNull();
+  const id = idMatch![1]!;
+
+  const item = getQuizItem(id);
+  expect(item).toBeDefined();
+  expect(item?.question).toBe('What is 2+2?');
+  expect(item?.correctIndex).toBe(1);
+  expect(item?.explanation).toBe('Basic arithmetic: 2 plus 2 equals 4.');
 });
