@@ -28,6 +28,7 @@ export interface AnswerMeta {
   model: string;
   latencyMs: number;
   toolsUsed?: readonly string[];
+  stepTraces?: readonly string[];
 }
 
 /** Model output must never ping @everyone, roles, or users. */

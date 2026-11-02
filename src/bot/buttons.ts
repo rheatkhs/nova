@@ -15,7 +15,24 @@ import { getQuizItem, createChannelHistoryTool } from '../tools/index.ts';
 import { formatFooter } from './footer.ts';
 import { chunk } from '../chunk.ts';
 
-export function buildActionRow(authorId: string, canThread: boolean, withCode = false) {
+export interface StepTrace {
+  id: string;
+  steps: string[];
+}
+
+const STEP_STORE = new Map<string, StepTrace>();
+
+export function saveStepTrace(steps: string[]): string {
+  const id = Math.random().toString(36).slice(2, 8);
+  STEP_STORE.set(id, { id, steps });
+  if (STEP_STORE.size > 50) {
+    const oldest = STEP_STORE.keys().next().value;
+    if (oldest) STEP_STORE.delete(oldest);
+  }
+  return id;
+}
+
+export function buildActionRow(authorId: string, canThread: boolean, withCode = false, stepTraceId?: string) {
   const row = new ActionRowBuilder<ButtonBuilder>();
   if (canThread) {
     row.addComponents(
@@ -32,6 +49,15 @@ export function buildActionRow(authorId: string, canThread: boolean, withCode = 
         .setCustomId('code')
         .setLabel('Code')
         .setEmoji('📥')
+        .setStyle(ButtonStyle.Secondary),
+    );
+  }
+  if (stepTraceId) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`step:${stepTraceId}:0`)
+        .setLabel('Steps')
+        .setEmoji('🔍')
         .setStyle(ButtonStyle.Secondary),
     );
   }
@@ -292,5 +318,50 @@ export async function handleButton(interaction: ButtonInteraction, deps: BotDeps
         flags: MessageFlags.Ephemeral,
       });
     }
+  }
+
+  if (action === 'step') {
+    const stepId = authorId;
+    const targetIndex = Number(interaction.customId.split(':')[2] || '0');
+    const trace = stepId ? STEP_STORE.get(stepId) : undefined;
+    if (!trace || trace.steps.length === 0) {
+      await interaction.reply({
+        content: 'Step history has expired for this turn.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    const idx = Math.max(0, Math.min(targetIndex, trace.steps.length - 1));
+    const currentStep = trace.steps[idx];
+    const navRow = new ActionRowBuilder<ButtonBuilder>();
+
+    navRow.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`step:${stepId}:${idx - 1}`)
+        .setLabel('Prev')
+        .setEmoji('◀️')
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(idx === 0),
+      new ButtonBuilder()
+        .setCustomId('noop')
+        .setLabel(`Step ${idx + 1} of ${trace.steps.length}`)
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(true),
+      new ButtonBuilder()
+        .setCustomId(`step:${stepId}:${idx + 1}`)
+        .setLabel('Next')
+        .setEmoji('▶️')
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(idx === trace.steps.length - 1),
+    );
+
+    const content = `🔍 **Agent Execution Trajectory**\n\n${currentStep}`;
+    if (interaction.replied || interaction.deferred) {
+      await interaction.editReply({ content, components: [navRow] });
+    } else {
+      await interaction.reply({ content, components: [navRow], flags: MessageFlags.Ephemeral });
+    }
+    return;
   }
 }
