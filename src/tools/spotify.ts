@@ -75,7 +75,7 @@ export function createPlaySpotifyTool(getContext?: () => { message?: Message }):
               adapterCreator: guild.voiceAdapterCreator as unknown as DiscordGatewayAdapterCreator,
             });
 
-            await entersState(connection, VoiceConnectionStatus.Ready, 5_000);
+            await entersState(connection, VoiceConnectionStatus.Ready, 20_000);
 
             const player = createAudioPlayer();
             const resource = createAudioResource(track.previewUrl, { inlineVolume: true });
