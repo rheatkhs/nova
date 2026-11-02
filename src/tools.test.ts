@@ -85,17 +85,35 @@ test('webSearchTool requires query', async () => {
 });
 
 test('webSearchTool falls back to Wikipedia when neither Brave nor SearXNG configured', async () => {
+  const server = Bun.serve({
+    port: 3949,
+    fetch() {
+      return Response.json({
+        query: {
+          search: [{ title: 'Bun (software)', snippet: 'A fast all-in-one JavaScript runtime' }],
+        },
+      });
+    },
+  });
+
   const origBrave = process.env.BRAVE_API_KEY;
   const origSearxng = process.env.SEARXNG_URL;
+  const origWiki = process.env.WIKIPEDIA_BASE_URL;
   delete process.env.BRAVE_API_KEY;
   delete process.env.SEARXNG_URL;
+  process.env.WIKIPEDIA_BASE_URL = 'http://127.0.0.1:3949';
 
-  const res = await webSearchTool.execute({ query: 'Bun (software)' });
-  expect(res).toContain('neither BRAVE_API_KEY nor SEARXNG_URL configured');
-  expect(res).toContain('Bun');
-
-  if (origBrave) process.env.BRAVE_API_KEY = origBrave;
-  if (origSearxng) process.env.SEARXNG_URL = origSearxng;
+  try {
+    const res = await webSearchTool.execute({ query: 'Bun (software)' });
+    expect(res).toContain('neither BRAVE_API_KEY nor SEARXNG_URL configured');
+    expect(res).toContain('Bun (software)');
+  } finally {
+    if (origBrave) process.env.BRAVE_API_KEY = origBrave;
+    if (origSearxng) process.env.SEARXNG_URL = origSearxng;
+    if (origWiki) process.env.WIKIPEDIA_BASE_URL = origWiki;
+    else delete process.env.WIKIPEDIA_BASE_URL;
+    server.stop();
+  }
 });
 
 test('renderChartTool validates labels and data arrays', async () => {

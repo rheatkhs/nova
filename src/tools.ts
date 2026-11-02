@@ -154,7 +154,8 @@ export const wikipediaSearchTool: Tool = {
     const query = String(args.query || '').trim();
     if (!query) return 'Error: query is required';
     try {
-      const url = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&utf8=1`;
+      const base = process.env.WIKIPEDIA_BASE_URL || 'https://en.wikipedia.org/w/api.php';
+      const url = `${base}?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&utf8=1`;
       const res = await fetch(url, {
         headers: { 'User-Agent': 'NovaDiscordBot/1.0 (https://github.com/rheatkhs/nova)' },
         signal: AbortSignal.timeout(10_000),

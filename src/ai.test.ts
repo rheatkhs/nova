@@ -280,6 +280,39 @@ test('createChat retries transient 502 error and succeeds on retry', async () =>
   }
 });
 
+test('createChat cascades to fallbackModel when primaryModel fails', async () => {
+  const modelsRequested: string[] = [];
+  const server = Bun.serve({
+    port: 3947,
+    async fetch(req) {
+      const body = (await req.json()) as { model: string };
+      modelsRequested.push(body.model);
+      if (body.model === 'primary-model') {
+        return new Response('Rate limit or model quota exhausted', { status: 429 });
+      }
+      return Response.json({
+        choices: [{ message: { role: 'assistant', content: 'fallback answer' } }],
+      });
+    },
+  });
+
+  try {
+    const chat = createChat({
+      baseUrl: 'http://127.0.0.1:3947/v1',
+      apiKey: undefined,
+      model: 'primary-model',
+      fallbackModel: 'backup-model',
+      systemPrompt: 'sys',
+      retries: 0,
+    });
+    const reply = await chat([{ role: 'user', content: 'hello' }]);
+    expect(reply).toBe('fallback answer');
+    expect(modelsRequested).toEqual(['primary-model', 'backup-model']);
+  } finally {
+    server.stop();
+  }
+});
+
 test('sanitizeOutput preserves normal responses and redacts verbatim system prompt leaks', () => {
   const sys = 'You are Nova, a helpful Discord assistant. Keep answers concise.';
 
