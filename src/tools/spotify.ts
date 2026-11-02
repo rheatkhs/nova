@@ -82,6 +82,9 @@ export function createPlaySpotifyTool(getContext?: () => { message?: Message }):
             player.play(resource);
             connection.subscribe(player);
 
+            player.on('error', (error) => {
+              console.error('Audio player error:', error);
+            });
             player.on(AudioPlayerStatus.Idle, () => {
               try {
                 connection.destroy();
