@@ -94,6 +94,22 @@ export const BOT_COMMANDS: readonly ApplicationCommandDataResolvable[] = [
     ],
   },
   {
+    name: 'bahasa',
+    description: 'Switch bot UI language between English and Indonesian (Bahasa Indonesia)',
+    options: [
+      {
+        name: 'lang',
+        description: 'Target language (en for English, id for Indonesia)',
+        type: 3, // ApplicationCommandOptionType.String
+        required: false,
+        choices: [
+          { name: 'English (en)', value: 'en' },
+          { name: 'Bahasa Indonesia (id)', value: 'id' },
+        ],
+      },
+    ],
+  },
+  {
     name: 'voice',
     description: 'View, set, or clear preferred TTS voice locale for this channel',
     options: [
