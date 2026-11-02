@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { createChannelHistoryTool, createPollTool, createQuizTool, evalMathTool, evaluateMath, fetchPageTool, getCurrentTimeTool, getQuizItem, getSandboxSnippet, renderChartTool, renderDiagramTool, renderHtmlTool, webSearchTool, wikipediaSearchTool } from './tools.ts';
+import { createChannelHistoryTool, createPollTool, createQuizTool, evalMathTool, evaluateMath, fetchPageTool, generateImageTool, getCurrentTimeTool, getQuizItem, getSandboxSnippet, renderChartTool, renderDiagramTool, renderHtmlTool, webSearchTool, wikipediaSearchTool } from './tools.ts';
 
 test('get_current_time returns valid UTC date info', async () => {
   const result = JSON.parse(await getCurrentTimeTool.execute({}));
@@ -233,4 +233,19 @@ test('createQuizTool stores quiz in QUIZ_STORE and returns quiz formatted text',
   expect(item?.question).toBe('What is 2+2?');
   expect(item?.correctIndex).toBe(1);
   expect(item?.explanation).toBe('Basic arithmetic: 2 plus 2 equals 4.');
+});
+
+test('generateImageTool validates prompt and formats Pollinations URL with aspect ratio', async () => {
+  expect(await generateImageTool.execute({})).toBe('Error: prompt is required');
+  expect(await generateImageTool.execute({ prompt: '   ' })).toBe('Error: prompt is required');
+
+  const resLandscape = await generateImageTool.execute({ prompt: 'Cyberpunk city', aspectRatio: 'landscape' });
+  expect(resLandscape).toContain('https://image.pollinations.ai/prompt/Cyberpunk%20city');
+  expect(resLandscape).toContain('width=768&height=512');
+
+  const resSquare = await generateImageTool.execute({ prompt: 'Cute cat', aspectRatio: 'square' });
+  expect(resSquare).toContain('width=512&height=512');
+
+  const resPortrait = await generateImageTool.execute({ prompt: 'Tall tower', aspectRatio: 'portrait' });
+  expect(resPortrait).toContain('width=512&height=768');
 });

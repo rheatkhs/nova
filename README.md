@@ -76,6 +76,7 @@ Nova executes tools concurrently during the agent loop (`maxToolSteps = 5`):
 | `render_chart` | 📊 | Generates dark-themed charts (bar, line, pie, doughnut) rendered inline via QuickChart |
 | `render_diagram` | 📐 | Renders architecture, sequence, and flowcharts visually using Mermaid syntax |
 | `render_html` | 💻 | Serves live interactive HTML/CSS/JS sandbox applications via `/view/:id` |
+| `generate_image` | 🎨 | Generates AI artwork and realistic photos with custom aspect ratios |
 | `create_poll` | 🗳️ | Generates formatted numbered polls with reaction emojis for voting |
 | `create_quiz` | 🧠 | Generates interactive multiple-choice quizzes with clickable answer buttons |
 | `eval_math` | 🔢 | Safe recursive-descent math evaluator (+, -, *, /, %, ^, sqrt, trig, logs, constants) |
