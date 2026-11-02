@@ -2,6 +2,7 @@ import type { Client } from 'discord.js';
 import { Elysia } from 'elysia';
 import type { BotStats } from './bot.ts';
 import type { ConversationMemory } from './memory.ts';
+import { renderDashboard } from './dashboard.ts';
 
 export interface ServerDeps {
   client: Client;
@@ -13,6 +14,23 @@ export interface ServerDeps {
 /** Read-only status API for health checks and monitoring. */
 export function createServer({ client, memory, stats, model }: ServerDeps) {
   return new Elysia()
+    .get('/', ({ set }) => {
+      set.headers['Content-Type'] = 'text/html; charset=utf-8';
+      const memStats = memory.stats();
+      return renderDashboard({
+        ready: client.isReady(),
+        model,
+        uptimeSec: Math.floor(process.uptime()),
+        guilds: client.guilds.cache.size,
+        pingMs: client.ws.ping,
+        answered: stats.answered,
+        failed: stats.failed,
+        toolCalls: stats.toolCalls,
+        lastResponseMs: stats.lastResponseMs,
+        totalMessages: memStats.totalMessages,
+        channels: memStats.channels,
+      });
+    })
     .get('/health', ({ status }) => {
       if (!client.isReady()) {
         return status(503, { ok: false, error: 'discord gateway disconnected' });

@@ -136,3 +136,25 @@ test('GET /metrics returns Prometheus formatted exposition text', async () => {
   expect(text).toContain('nova_memory_channels_total 1');
   memory.close();
 });
+
+test('GET / renders HTML dark-mode dashboard', async () => {
+  const memory = new ConversationMemory(10, ':memory:');
+  const app = createServer({
+    client: mockClient(true, 2, 18),
+    memory,
+    stats: { answered: 20, failed: 0, toolCalls: 5, consecutiveFailures: 0, lastResponseMs: 180 },
+    model: 'ag/gemini-3.8-flash',
+  });
+
+  const res = await app.handle(new Request('http://localhost/'));
+  expect(res.status).toBe(200);
+  expect(res.headers.get('Content-Type')).toContain('text/html');
+
+  const html = await res.text();
+  expect(html).toContain('Nova AI');
+  expect(html).toContain('ONLINE');
+  expect(html).toContain('ag/gemini-3.8-flash');
+  expect(html).toContain('Questions Answered');
+  expect(html).toContain('20');
+  memory.close();
+});
