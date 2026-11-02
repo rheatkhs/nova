@@ -41,6 +41,7 @@ Elysia server on `HOST:PORT` (default `127.0.0.1:3000`):
 | --- | --- |
 | `GET /health` | `200 {"ok":true}` when connected to Discord, else `503` |
 | `GET /stats` | Ready state, uptime, guild count, gateway ping, model name, answered/failed/toolCalls counts, and SQLite memory metrics |
+| `GET /metrics` | Prometheus exposition format metrics for scraping (Prometheus / Grafana / Datadog) |
 
 ## Scripts
 
