@@ -76,7 +76,18 @@ export function createBot(deps: BotDeps): Client {
             },
           ],
         },
-        { name: 'reset', description: 'Clear conversation memory for this channel' },
+        {
+          name: 'reset',
+          description: 'Clear conversation memory for this channel',
+          options: [
+            {
+              name: 'recap',
+              description: 'Generate a summary of the conversation before clearing memory',
+              type: 5, // ApplicationCommandOptionType.Boolean
+              required: false,
+            },
+          ],
+        },
         {
           name: 'export',
           description: 'Export and download conversation history for this channel',
@@ -163,7 +174,7 @@ async function handleInteraction(interaction: Interaction, deps: BotDeps): Promi
       '• `/help` - Show this guide',
       '• `/stats` - View live bot operational metrics and memory',
       '• `/ask-thread [question]` - Ask and start a dedicated discussion thread',
-      '• `/reset` - Clear conversation history for this channel',
+      '• `/reset [recap]` - Clear conversation history (optional recap summary)',
       '• `/export [format]` - Download channel conversation history (.md or .json)',
       '• `/prompt [text]` - View or set custom system prompt for this channel (admins)',
       '• `/model [name]` - View or switch model for this channel (admins)',
@@ -273,6 +284,29 @@ async function handleInteraction(interaction: Interaction, deps: BotDeps): Promi
     return;
   }
   if (interaction.commandName === 'reset') {
+    const wantRecap = interaction.options.getBoolean('recap') ?? false;
+    const history = deps.memory.get(interaction.channelId);
+
+    if (wantRecap && history.length > 0) {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      let summary = '';
+      try {
+        const recapPrompt: ChatMessage = {
+          role: 'user',
+          content: 'Provide a concise 2-3 sentence summary of the key points in our conversation so far.',
+        };
+        summary = await deps.chat([...history, recapPrompt]);
+      } catch {
+        summary = '(Could not generate recap)';
+      }
+      deps.memory.clear(interaction.channelId);
+      await interaction.editReply({
+        content: `**Conversation Recap:**\n${summary}\n\n*Memory cleared for this channel.*`,
+        allowedMentions: NO_PINGS,
+      });
+      return;
+    }
+
     deps.memory.clear(interaction.channelId);
     await interaction.reply({
       content: 'Conversation memory cleared for this channel.',
