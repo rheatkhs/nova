@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { chunk, detectLanguage, tagCodeFences } from './chunk.ts';
-import { formatFooter } from './bot.ts';
+import { formatFooter, toolLabel } from './bot.ts';
 
 test('chunk respects limit and preserves content', () => {
   expect(chunk('')).toEqual([]);
@@ -47,7 +47,9 @@ test('formatFooter produces clean subtext with model, latency, and tools', () =>
   expect(formatFooter({ model: 'gpt-4o', latencyMs: 250 })).toBe('\n\n-# ⚡ `gpt-4o` • ⏱️ 250ms');
   expect(
     formatFooter({ model: 'claude', latencyMs: 320, toolsUsed: ['web_search', 'web_search', 'eval_math'] }),
-  ).toBe('\n\n-# ⚡ `claude` • ⏱️ 320ms • 🛠️ web_search, eval_math');
+  ).toBe('\n\n-# ⚡ `claude` • ⏱️ 320ms • 🔎 web_search • 🔢 eval_math');
+  expect(toolLabel('web_search')).toBe('Searching the web');
+  expect(toolLabel('render_chart')).toBe('Generating visual chart');
 });
 
 test('detectLanguage correctly identifies languages from snippets', () => {

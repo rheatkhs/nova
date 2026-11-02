@@ -888,7 +888,8 @@ export function formatFooter(meta?: AnswerMeta): string {
   const parts: string[] = [`⚡ \`${meta.model}\``, `⏱️ ${meta.latencyMs}ms`];
   if (meta.toolsUsed && meta.toolsUsed.length > 0) {
     const unique = [...new Set(meta.toolsUsed)];
-    parts.push(`🛠️ ${unique.join(', ')}`);
+    const badges = unique.map((name) => `${toolEmoji(name)} ${name}`);
+    parts.push(badges.join(' • '));
   }
   return `\n\n-# ${parts.join(' • ')}`;
 }
@@ -1142,7 +1143,7 @@ async function handleButton(interaction: ButtonInteraction, deps: BotDeps): Prom
 }
 
 /** Maps a tool name to a short visual status emoji. */
-function toolEmoji(toolName: string): string {
+export function toolEmoji(toolName: string): string {
   switch (toolName) {
     case 'wikipedia_search':
       return '🔍';
@@ -1160,5 +1161,27 @@ function toolEmoji(toolName: string): string {
       return '📊';
     default:
       return '⚙️';
+  }
+}
+
+/** Maps a tool name to a human-friendly action description. */
+export function toolLabel(toolName: string): string {
+  switch (toolName) {
+    case 'web_search':
+      return 'Searching the web';
+    case 'wikipedia_search':
+      return 'Searching Wikipedia';
+    case 'fetch_page':
+      return 'Reading web page';
+    case 'render_chart':
+      return 'Generating visual chart';
+    case 'eval_math':
+      return 'Evaluating calculation';
+    case 'read_channel_history':
+      return 'Reading channel history';
+    case 'get_current_time':
+      return 'Checking UTC clock';
+    default:
+      return 'Running tool';
   }
 }
