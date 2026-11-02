@@ -64,6 +64,22 @@ export function createBot(deps: BotDeps): Client {
         { name: 'stats', description: 'View live bot operational metrics, model, and memory stats' },
         { name: 'reset', description: 'Clear conversation memory for this channel' },
         {
+          name: 'export',
+          description: 'Export and download conversation history for this channel',
+          options: [
+            {
+              name: 'format',
+              description: 'File format (default: markdown)',
+              type: 3, // ApplicationCommandOptionType.String
+              required: false,
+              choices: [
+                { name: 'Markdown (.md)', value: 'markdown' },
+                { name: 'JSON (.json)', value: 'json' },
+              ],
+            },
+          ],
+        },
+        {
           name: 'prompt',
           description: 'View, set, or clear custom AI system prompt for this channel',
           options: [
@@ -109,6 +125,7 @@ async function handleInteraction(interaction: Interaction, deps: BotDeps): Promi
       '• `/help` - Show this guide',
       '• `/stats` - View live bot operational metrics and memory',
       '• `/reset` - Clear conversation history for this channel',
+      '• `/export [format]` - Download channel conversation history (.md or .json)',
       '• `/prompt [text]` - View or set custom system prompt for this channel (admins)',
       '• `/model [name]` - View or switch model for this channel (admins)',
       '',
@@ -141,6 +158,42 @@ async function handleInteraction(interaction: Interaction, deps: BotDeps): Promi
     deps.memory.clear(interaction.channelId);
     await interaction.reply({
       content: 'Conversation memory cleared for this channel.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+  if (interaction.commandName === 'export') {
+    const history = deps.memory.get(interaction.channelId);
+    if (history.length === 0) {
+      await interaction.reply({
+        content: 'No conversation history stored for this channel.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    const format = interaction.options.getString('format') || 'markdown';
+    let file: AttachmentBuilder;
+    if (format === 'json') {
+      const json = JSON.stringify(history, null, 2);
+      file = new AttachmentBuilder(Buffer.from(json, 'utf-8'), {
+        name: `history-${interaction.channelId}.json`,
+      });
+    } else {
+      const header = `# Nova Chat History\nChannel: ${interaction.channelId}\nExported: ${new Date().toISOString()}\n\n---\n\n`;
+      const body = history
+        .map((m) => {
+          const author = m.role === 'assistant' ? 'Nova (Assistant)' : 'User';
+          const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
+          return `### ${author}\n\n${content}\n`;
+        })
+        .join('\n---\n\n');
+      file = new AttachmentBuilder(Buffer.from(header + body, 'utf-8'), {
+        name: `history-${interaction.channelId}.md`,
+      });
+    }
+    await interaction.reply({
+      content: `Exported ${history.length} conversation messages:`,
+      files: [file],
       flags: MessageFlags.Ephemeral,
     });
     return;
