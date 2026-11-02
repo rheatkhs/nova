@@ -161,3 +161,11 @@ test('ConversationMemory.get trims with maxCharacters argument', () => {
   expect(mem.get('c1', 20).map((m) => m.content)).toEqual(['12345', '67890']);
   mem.close();
 });
+
+test('optimize and vacuum execute without errors', () => {
+  const mem = new ConversationMemory(10, ':memory:');
+  mem.append('c1', { role: 'user', content: 'test optimize' });
+  expect(mem.optimize()).toBe(true);
+  expect(mem.vacuum()).toBe(true);
+  mem.close();
+});
