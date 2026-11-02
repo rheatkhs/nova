@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { createChannelHistoryTool, evalMathTool, evaluateMath, fetchPageTool, getCurrentTimeTool, renderChartTool, webSearchTool, wikipediaSearchTool } from './tools.ts';
+import { createChannelHistoryTool, createPollTool, evalMathTool, evaluateMath, fetchPageTool, getCurrentTimeTool, renderChartTool, webSearchTool, wikipediaSearchTool } from './tools.ts';
 
 test('get_current_time returns valid UTC date info', async () => {
   const result = JSON.parse(await getCurrentTimeTool.execute({}));
@@ -134,4 +134,27 @@ test('renderChartTool generates a valid QuickChart URL', async () => {
   expect(res).toContain('[Chart generated: Adoption Rate]');
   expect(res).toContain('https://quickchart.io/chart?c=');
   expect(res).toContain('bkg=%23181a20');
+});
+
+test('createPollTool validates options count and question', async () => {
+  expect(await createPollTool.execute({ question: '', options: ['A', 'B'] })).toBe('Error: question is required');
+  expect(await createPollTool.execute({ question: 'Fav language?', options: ['Rust'] })).toBe(
+    'Error: a poll requires at least 2 options',
+  );
+  const tooMany = Array.from({ length: 11 }, (_, i) => `Opt ${i}`);
+  expect(await createPollTool.execute({ question: 'Too many?', options: tooMany })).toBe(
+    'Error: maximum 10 options allowed',
+  );
+});
+
+test('createPollTool formats clean numbered poll block', async () => {
+  const poll = await createPollTool.execute({
+    question: 'Best JavaScript Runtime?',
+    options: ['Bun', 'Node.js', 'Deno'],
+  });
+  expect(poll).toContain('📊 **POLL: Best JavaScript Runtime?**');
+  expect(poll).toContain('1️⃣ Bun');
+  expect(poll).toContain('2️⃣ Node.js');
+  expect(poll).toContain('3️⃣ Deno');
+  expect(poll).toContain('React below with the corresponding number emoji to vote!');
 });

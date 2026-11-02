@@ -284,7 +284,7 @@ async function handleInteraction(interaction: Interaction, deps: BotDeps): Promi
       '• `/temperature [value]` - View or set temperature 0.0-2.0 (admins)',
       '• `/language [name]` - View or set preferred channel language (admins)',
       '',
-      '• `web_search` 🔎, `wikipedia_search` 🔍, `fetch_page` 🌐, `render_chart` 📊, `eval_math` 🔢, `get_current_time` ⏱️, `read_channel_history` 📜',
+      '• `web_search` 🔎, `wikipedia_search` 🔍, `fetch_page` 🌐, `render_chart` 📊, `create_poll` 🗳️, `eval_math` 🔢, `get_current_time` ⏱️, `read_channel_history` 📜',
     ].join('\n');
     await interaction.reply({ content: text, flags: MessageFlags.Ephemeral });
     return;
@@ -1235,6 +1235,8 @@ export function toolEmoji(toolName: string): string {
       return '🔢';
     case 'render_chart':
       return '📊';
+    case 'create_poll':
+      return '🗳️';
     default:
       return '⚙️';
   }
@@ -1251,6 +1253,8 @@ export function toolLabel(toolName: string): string {
       return 'Reading web page';
     case 'render_chart':
       return 'Generating visual chart';
+    case 'create_poll':
+      return 'Creating community poll';
     case 'eval_math':
       return 'Evaluating calculation';
     case 'read_channel_history':
