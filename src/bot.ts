@@ -597,13 +597,14 @@ async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueue): Pro
       role: 'user',
       content: attachSummary ? `${userText} [Attached ${attachSummary}]` : userText,
     };
+    const channelTool = createChannelHistoryTool(channel);
+    const channelPrompt = deps.memory.getPrompt(msg.channelId) ?? undefined;
+    const channelModel = deps.memory.getModel(msg.channelId) ?? undefined;
+    const channelTemperature = deps.memory.getTemperature(msg.channelId) ?? undefined;
+    const channelLanguage = deps.memory.getLanguage(msg.channelId) ?? undefined;
+    const toolsUsed: string[] = [];
     let answer: string;
     try {
-      const channelTool = createChannelHistoryTool(channel);
-      const channelPrompt = deps.memory.getPrompt(msg.channelId) ?? undefined;
-      const channelModel = deps.memory.getModel(msg.channelId) ?? undefined;
-      const channelTemperature = deps.memory.getTemperature(msg.channelId) ?? undefined;
-      const channelLanguage = deps.memory.getLanguage(msg.channelId) ?? undefined;
       const t0 = Date.now();
       answer = await withTyping(channel, () =>
         deps.chat([...deps.memory.get(msg.channelId, deps.historyCharLimit), question], {
@@ -613,6 +614,7 @@ async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueue): Pro
           language: channelLanguage,
           extraTools: [channelTool],
           onToolStart: (tool) => {
+            toolsUsed.push(tool);
             deps.stats.toolCalls++;
             void msg.react(toolEmoji(tool)).catch(() => {});
           },
@@ -628,7 +630,11 @@ async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueue): Pro
     }
 
     try {
-      await sendAnswer(msg, channel, answer);
+      await sendAnswer(msg, channel, answer, {
+        model: channelModel ?? 'default',
+        latencyMs: deps.stats.lastResponseMs,
+        toolsUsed,
+      });
     } catch (err) {
       deps.stats.failed++;
       deps.stats.consecutiveFailures++;
@@ -704,7 +710,29 @@ async function withTyping<T>(channel: SendableChannels, task: () => Promise<T>):
   }
 }
 
-async function sendAnswer(msg: Message, channel: SendableChannels, answer: string): Promise<void> {
+export interface AnswerMeta {
+  model: string;
+  latencyMs: number;
+  toolsUsed?: readonly string[];
+}
+
+export function formatFooter(meta?: AnswerMeta): string {
+  if (!meta) return '';
+  const parts: string[] = [`⚡ \`${meta.model}\``, `⏱️ ${meta.latencyMs}ms`];
+  if (meta.toolsUsed && meta.toolsUsed.length > 0) {
+    const unique = [...new Set(meta.toolsUsed)];
+    parts.push(`🛠️ ${unique.join(', ')}`);
+  }
+  return `\n\n-# ${parts.join(' • ')}`;
+}
+
+async function sendAnswer(
+  msg: Message,
+  channel: SendableChannels,
+  answer: string,
+  meta?: AnswerMeta,
+): Promise<void> {
+  const footer = formatFooter(meta);
   const parts = chunk(answer);
   const canThread = msg.inGuild() && !msg.channel.isThread();
   const row = buildActionRow(msg.author.id, canThread);
@@ -713,9 +741,9 @@ async function sendAnswer(msg: Message, channel: SendableChannels, answer: strin
     const [first, second] = parts;
     if (second) {
       await msg.reply({ content: first ?? '', allowedMentions: NO_PINGS });
-      await channel.send({ content: second, components: [row], allowedMentions: NO_PINGS });
+      await channel.send({ content: `${second}${footer}`, components: [row], allowedMentions: NO_PINGS });
     } else {
-      await msg.reply({ content: first ?? '', components: [row], allowedMentions: NO_PINGS });
+      await msg.reply({ content: `${first ?? ''}${footer}`, components: [row], allowedMentions: NO_PINGS });
     }
     return;
   }
@@ -724,7 +752,7 @@ async function sendAnswer(msg: Message, channel: SendableChannels, answer: strin
   const preview = parts[0] ?? '';
   const file = new AttachmentBuilder(Buffer.from(answer, 'utf-8'), { name: 'response.md' });
   await msg.reply({
-    content: `${preview}\n\n*(Full response attached as response.md)*`,
+    content: `${preview}\n\n*(Full response attached as response.md)*${footer}`,
     files: [file],
     components: [row],
     allowedMentions: NO_PINGS,
