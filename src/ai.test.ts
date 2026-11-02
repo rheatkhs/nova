@@ -114,6 +114,33 @@ test('createChat passes temperature in body when specified', async () => {
   }
 });
 
+test('createChat injects target language into system prompt when specified', async () => {
+  let receivedSys = '';
+  const server = Bun.serve({
+    port: 3946,
+    async fetch(req) {
+      const body = (await req.json()) as RequestPayload;
+      receivedSys = body.messages.find((m) => m.role === 'system')?.content || '';
+      return Response.json({
+        choices: [{ message: { role: 'assistant', content: 'Xin chao' } }],
+      });
+    },
+  });
+
+  try {
+    const chat = createChat({
+      baseUrl: 'http://127.0.0.1:3946/v1',
+      apiKey: undefined,
+      model: 'test-model',
+      systemPrompt: 'You are Nova.',
+    });
+    await chat([{ role: 'user', content: 'hi' }], { language: 'Vietnamese' });
+    expect(receivedSys).toContain('Target language: Always respond in Vietnamese.');
+  } finally {
+    server.stop();
+  }
+});
+
 test('createChat executes tool call and returns final reply', async () => {
   let step = 0;
   const server = Bun.serve({
