@@ -1,0 +1,296 @@
+import {
+  ActionRowBuilder,
+  AttachmentBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  MessageFlags,
+  PermissionFlagsBits,
+  type ButtonInteraction,
+} from 'discord.js';
+import type { BotDeps } from './types.ts';
+import { NO_PINGS } from './types.ts';
+import { extractCodeSnippet } from './code.ts';
+import { generateSpeechAudio } from './tts.ts';
+import { getQuizItem, createChannelHistoryTool } from '../tools/index.ts';
+import { formatFooter } from './footer.ts';
+import { chunk } from '../chunk.ts';
+
+export function buildActionRow(authorId: string, canThread: boolean, withCode = false) {
+  const row = new ActionRowBuilder<ButtonBuilder>();
+  if (canThread) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`thread:${authorId}`)
+        .setLabel('Thread')
+        .setEmoji('🧵')
+        .setStyle(ButtonStyle.Secondary),
+    );
+  }
+  if (withCode) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId('code')
+        .setLabel('Code')
+        .setEmoji('📥')
+        .setStyle(ButtonStyle.Secondary),
+    );
+  }
+  row.addComponents(
+    new ButtonBuilder()
+      .setCustomId('tts')
+      .setLabel('Listen')
+      .setEmoji('🔊')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(`regen:${authorId}`)
+      .setLabel('Regenerate')
+      .setEmoji('🔄')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId('save')
+      .setLabel('Save')
+      .setEmoji('📩')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(`del:${authorId}`)
+      .setLabel('Delete')
+      .setEmoji('🗑️')
+      .setStyle(ButtonStyle.Secondary),
+  );
+  return row;
+}
+
+export function buildQuizRow(quizId: string) {
+  const row = new ActionRowBuilder<ButtonBuilder>();
+  const letters = ['A', 'B', 'C', 'D'];
+  for (let i = 0; i < 4; i++) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`quiz:${quizId}:${i}`)
+        .setLabel(letters[i]!)
+        .setStyle(ButtonStyle.Primary),
+    );
+  }
+  return row;
+}
+
+export async function handleButton(interaction: ButtonInteraction, deps: BotDeps): Promise<void> {
+  if (interaction.customId.startsWith('quiz:')) {
+    const [, quizId, idxStr] = interaction.customId.split(':');
+    const quiz = quizId ? getQuizItem(quizId) : undefined;
+    if (!quiz) {
+      await interaction.reply({
+        content: 'This quiz has expired.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    const chosenIndex = Number(idxStr);
+    const isCorrect = chosenIndex === quiz.correctIndex;
+    const letters = ['A', 'B', 'C', 'D'];
+    const chosenLetter = letters[chosenIndex] ?? '';
+    const correctLetter = letters[quiz.correctIndex] ?? '';
+
+    const reply = isCorrect
+      ? `🎉 **Correct! (${chosenLetter})**\n\n${quiz.explanation}`
+      : `❌ **Incorrect (You chose ${chosenLetter})**\n\nCorrect answer is **${correctLetter}. ${quiz.options[quiz.correctIndex]}**\n\n${quiz.explanation}`;
+
+    await interaction.reply({ content: reply, flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  if (interaction.customId === 'tts') {
+    const rawText = interaction.message.content.replace(/^-#.*$/gm, '').replace(/```[\s\S]*?```/g, '').trim();
+    if (!rawText) {
+      await interaction.reply({
+        content: 'No readable speech text found in this response.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    try {
+      const audioBuf = await generateSpeechAudio(rawText.slice(0, 450));
+      const file = new AttachmentBuilder(audioBuf, { name: 'speech.mp3' });
+      await interaction.editReply({
+        content: '🔊 **Voice Readout:**',
+        files: [file],
+      });
+    } catch {
+      await interaction.editReply({
+        content: 'Could not generate speech audio at this time.',
+      });
+    }
+    return;
+  }
+
+  if (interaction.customId === 'save') {
+    try {
+      const text = interaction.message.content || '*(No text content)*';
+      const jumpUrl = interaction.message.url;
+      await interaction.user.send({
+        content: `**Saved from Nova:**\n${text}\n\n[Jump to message](${jumpUrl})`,
+      });
+      await interaction.reply({
+        content: '📩 Answer sent to your DMs!',
+        flags: MessageFlags.Ephemeral,
+      });
+    } catch {
+      await interaction.reply({
+        content: 'Could not send DM. Please enable direct messages from server members in your privacy settings.',
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+    return;
+  }
+
+  if (interaction.customId === 'code') {
+    const text = interaction.message.content || '';
+    const snippet = extractCodeSnippet(text);
+    if (!snippet) {
+      await interaction.reply({
+        content: 'No code block found in this response.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    const file = new AttachmentBuilder(Buffer.from(snippet.code, 'utf-8'), {
+      name: `snippet.${snippet.ext}`,
+    });
+    await interaction.reply({
+      content: `📥 Extracted source code file (\`snippet.${snippet.ext}\`):`,
+      files: [file],
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  const [action, authorId] = interaction.customId.split(':');
+  if (action === 'regen' && authorId) {
+    const isAuthor = interaction.user.id === authorId;
+    if (!isAuthor) {
+      await interaction.reply({
+        content: 'Only the author of the question can regenerate this response.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    if (!deps.rateLimiter.check(interaction.user.id)) {
+      await interaction.reply({
+        content: '⏳ You are sending requests too quickly. Please wait a moment.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    const history = deps.memory.get(interaction.channelId, deps.historyCharLimit);
+    if (history.length === 0) {
+      await interaction.reply({
+        content: 'No prior conversation found to regenerate.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    const priorContext =
+      history.at(-1)?.role === 'assistant' ? history.slice(0, -1) : history;
+    if (priorContext.length === 0) return;
+
+    await interaction.deferUpdate();
+
+    const channelPrompt = deps.memory.getPrompt(interaction.channelId) ?? undefined;
+    const channelModel = deps.memory.getModel(interaction.channelId) ?? undefined;
+    const channelTemperature = deps.memory.getTemperature(interaction.channelId) ?? undefined;
+    const channelLanguage = deps.memory.getLanguage(interaction.channelId) ?? undefined;
+    const channel = interaction.channel;
+    const channelTool = channel ? createChannelHistoryTool(channel) : undefined;
+    const toolsUsed: string[] = [];
+
+    try {
+      const t0 = Date.now();
+      const answer = await deps.chat(priorContext, {
+        model: channelModel,
+        systemPrompt: channelPrompt,
+        temperature: channelTemperature,
+        language: channelLanguage,
+        extraTools: channelTool ? [channelTool] : undefined,
+        onToolStart: (tool) => {
+          toolsUsed.push(tool);
+          deps.stats.toolCalls++;
+        },
+      });
+      deps.stats.lastResponseMs = Date.now() - t0;
+      deps.memory.replaceLastAssistant(interaction.channelId, answer);
+      deps.stats.answered++;
+      deps.stats.consecutiveFailures = 0;
+
+      const footer = formatFooter({
+        model: channelModel ?? 'default',
+        latencyMs: deps.stats.lastResponseMs,
+        toolsUsed,
+      });
+      const parts = chunk(answer);
+      const canThread = interaction.inGuild() && !interaction.channel?.isThread();
+      const row = buildActionRow(authorId, canThread, /```[a-zA-Z0-9_-]*\n[\s\S]*?\n```/.test(answer));
+
+      await interaction.editReply({
+        content: `${parts[0] ?? ''}${footer}`,
+        components: [row],
+        allowedMentions: NO_PINGS,
+      });
+    } catch (err) {
+      deps.stats.failed++;
+      deps.stats.consecutiveFailures++;
+      console.error(err);
+      await interaction.followUp({
+        content: 'Failed to regenerate response, try again later.',
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+    return;
+  }
+
+  if (action === 'del') {
+    const isAuthor = interaction.user.id === authorId;
+    const canManage = Boolean(
+      interaction.inGuild() &&
+        (interaction.memberPermissions?.has(PermissionFlagsBits.ManageMessages) ||
+          interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)),
+    );
+    if (!isAuthor && !canManage) {
+      await interaction.reply({
+        content: 'Only the author of the question or a moderator can delete this reply.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    try {
+      await interaction.message.delete();
+    } catch {
+      await interaction.reply({ content: 'Could not delete message.', flags: MessageFlags.Ephemeral });
+    }
+    return;
+  }
+
+  if (action === 'thread') {
+    if (!interaction.inGuild() || interaction.channel?.isThread()) {
+      await interaction.reply({ content: 'Threads can only be created in public server channels.', flags: MessageFlags.Ephemeral });
+      return;
+    }
+    try {
+      const thread = await interaction.message.startThread({
+        name: 'Discussion',
+        autoArchiveDuration: 1440,
+      });
+      await interaction.reply({
+        content: `💬 Created thread: <#${thread.id}>`,
+        flags: MessageFlags.Ephemeral,
+      });
+    } catch {
+      await interaction.reply({
+        content: 'Failed to create thread (missing "Create Public Threads" permission).',
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+  }
+}
