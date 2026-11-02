@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { createChannelHistoryTool, createPollTool, createQuizTool, createReminderTool, evalMathTool, evaluateMath, fetchPageTool, generateImageTool, getCurrentTimeTool, getQuizItem, getSandboxSnippet, renderChartTool, renderDiagramTool, renderHtmlTool, testWebhookTool, webSearchTool, wikipediaSearchTool } from './tools.ts';
+import { createChannelHistoryTool, createPollTool, createQuizTool, createReminderTool, evalMathTool, evaluateMath, fetchPageTool, generateImageTool, getCurrentTimeTool, getQuizItem, getSandboxSnippet, renderChartTool, renderDiagramTool, renderHtmlTool, runCodeTool, testWebhookTool, webSearchTool, wikipediaSearchTool } from './tools.ts';
 
 test('get_current_time returns valid UTC date info', async () => {
   const result = JSON.parse(await getCurrentTimeTool.execute({}));
@@ -308,4 +308,26 @@ test('testWebhookTool validates URL, restricts loopback addresses, and tests pub
   } finally {
     globalThis.fetch = origFetch;
   }
+});
+
+test('runCodeTool validates input and executes JavaScript in Bun subprocess', async () => {
+  expect(await runCodeTool.execute({})).toBe('Error: code is required');
+  expect(await runCodeTool.execute({ code: '   ' })).toBe('Error: code is required');
+
+  const res = await runCodeTool.execute({
+    code: 'const nums = [1, 2, 3]; console.log(nums.map(x => x * 10).join(", "));',
+  });
+
+  expect(res).toContain('[Code Execution Result');
+  expect(res).toContain('Exit code: 0');
+  expect(res).toContain('10, 20, 30');
+});
+
+test('runCodeTool handles syntax errors and stderr output', async () => {
+  const res = await runCodeTool.execute({
+    code: 'console.error("Test error trace"); process.exit(1);',
+  });
+
+  expect(res).toContain('Exit code: 1');
+  expect(res).toContain('Test error trace');
 });

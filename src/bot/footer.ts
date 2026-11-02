@@ -29,6 +29,8 @@ export function toolEmoji(toolName: string): string {
       return '📡';
     case 'create_reminder':
       return '⏰';
+    case 'run_code':
+      return '⚡';
     default:
       return '⚙️';
   }
@@ -59,6 +61,8 @@ export function toolLabel(toolName: string): string {
       return 'Testing API webhook';
     case 'create_reminder':
       return 'Setting reminder timer';
+    case 'run_code':
+      return 'Running code in REPL sandbox';
     case 'read_channel_history':
       return 'Reading channel history';
     case 'get_current_time':
