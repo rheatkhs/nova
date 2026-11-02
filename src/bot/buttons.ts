@@ -88,7 +88,7 @@ export function buildActionRow(authorId: string, canThread: boolean, withCode = 
         .setStyle(ButtonStyle.Secondary),
     );
   }
-  if (withCode) {
+  if (withCode && row.components.length < 5) {
     row.addComponents(
       new ButtonBuilder()
         .setCustomId('code')
@@ -97,7 +97,7 @@ export function buildActionRow(authorId: string, canThread: boolean, withCode = 
         .setStyle(ButtonStyle.Secondary),
     );
   }
-  if (stepTraceId) {
+  if (stepTraceId && row.components.length < 5) {
     row.addComponents(
       new ButtonBuilder()
         .setCustomId(`step:${stepTraceId}:0`)
@@ -106,28 +106,42 @@ export function buildActionRow(authorId: string, canThread: boolean, withCode = 
         .setStyle(ButtonStyle.Secondary),
     );
   }
-  row.addComponents(
-    new ButtonBuilder()
-      .setCustomId('tts')
-      .setLabel('Listen')
-      .setEmoji('🔊')
-      .setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder()
-      .setCustomId(`regen:${authorId}`)
-      .setLabel('Regenerate')
-      .setEmoji('🔄')
-      .setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder()
-      .setCustomId('save')
-      .setLabel('Save')
-      .setEmoji('📩')
-      .setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder()
-      .setCustomId(`del:${authorId}`)
-      .setLabel('Delete')
-      .setEmoji('🗑️')
-      .setStyle(ButtonStyle.Secondary),
-  );
+  if (row.components.length < 5) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId('tts')
+        .setLabel('Listen')
+        .setEmoji('🔊')
+        .setStyle(ButtonStyle.Secondary),
+    );
+  }
+  if (row.components.length < 5) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`regen:${authorId}`)
+        .setLabel('Regenerate')
+        .setEmoji('🔄')
+        .setStyle(ButtonStyle.Secondary),
+    );
+  }
+  if (row.components.length < 5) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId('save')
+        .setLabel('Save')
+        .setEmoji('📩')
+        .setStyle(ButtonStyle.Secondary),
+    );
+  }
+  if (row.components.length < 5) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`del:${authorId}`)
+        .setLabel('Delete')
+        .setEmoji('🗑️')
+        .setStyle(ButtonStyle.Secondary),
+    );
+  }
   return row;
 }
 
