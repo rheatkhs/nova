@@ -7,7 +7,7 @@ import {
 import type { AnswerMeta, BotDeps } from './types.ts';
 import { NO_PINGS, TYPING_REFRESH_MS } from './types.ts';
 import type { TaskQueue } from '../queue.ts';
-import { buildActionRow, buildQuizRow } from './buttons.ts';
+import { buildActionRow, buildQuizRow, saveStepTrace } from './buttons.ts';
 import { formatFooter, toolEmoji, toolLabel } from './footer.ts';
 import { createChannelHistoryTool, createReminderTool } from '../tools/index.ts';
 import { chunk } from '../chunk.ts';
@@ -84,7 +84,9 @@ export async function sendAnswer(
   const footer = formatFooter(meta);
   const parts = chunk(answer);
   const canThread = msg.inGuild() && !msg.channel.isThread();
-  const row = buildActionRow(msg.author.id, canThread, /```[a-zA-Z0-9_-]*\n[\s\S]*?\n```/.test(answer));
+  const stepTraceId =
+    meta?.stepTraces && meta.stepTraces.length >= 2 ? saveStepTrace(meta.stepTraces as string[]) : undefined;
+  const row = buildActionRow(msg.author.id, canThread, /```[a-zA-Z0-9_-]*\n[\s\S]*?\n```/.test(answer), stepTraceId);
   const quizId = answer.match(/\[QUIZ:([a-z0-9]+)\]/)?.[1];
   const cleanAnswer = answer.replace(/\[QUIZ:[a-z0-9]+\]\n?/g, '');
   const rows = quizId ? [buildQuizRow(quizId), row] : [row];
@@ -188,6 +190,7 @@ export async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueu
     const channelTemperature = deps.memory.getTemperature(msg.channelId) ?? undefined;
     const channelLanguage = deps.memory.getLanguage(msg.channelId) ?? undefined;
     const toolsUsed: string[] = [];
+    const stepTraces: string[] = [];
     let statusMsg: Message | null = null;
     let answer: string;
     try {
@@ -201,6 +204,7 @@ export async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueu
           extraTools: [channelTool, reminderTool],
           onToolStart: (tool, step) => {
             toolsUsed.push(tool);
+            stepTraces.push(`**Step ${step}:** ${toolEmoji(tool)} **${tool}**\n*Action:* ${toolLabel(tool)}`);
             deps.stats.toolCalls++;
             events.broadcast('tool', `Invoked ${toolEmoji(tool)} ${tool} (step ${step}) in #${channel.id}`);
             void msg.react(toolEmoji(tool)).catch(() => {});
@@ -236,6 +240,7 @@ export async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueu
         model: channelModel ?? 'default',
         latencyMs: deps.stats.lastResponseMs,
         toolsUsed,
+        stepTraces,
       });
     } catch (err) {
       deps.stats.failed++;
