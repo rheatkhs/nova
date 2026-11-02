@@ -5,6 +5,7 @@ import {
   MessageFlags,
   Partials,
   PermissionFlagsBits,
+  type Attachment,
   type ChatInputCommandInteraction,
   type Interaction,
   type Message,
@@ -198,8 +199,11 @@ async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueue): Pro
   const imageAttachments = [...msg.attachments.values()].filter(
     (a) => a.contentType?.startsWith('image/') && a.size <= 10 * 1024 * 1024,
   ).slice(0, 4);
+  const textAttachments = [...msg.attachments.values()].filter(
+    (a) => !a.contentType?.startsWith('image/') && isTextAttachment(a) && a.size <= 500 * 1024,
+  ).slice(0, 3);
   const text = msg.content.replace(new RegExp(`<@!?${botId}>`, 'g'), '').trim();
-  if (!text && imageAttachments.length === 0) return;
+  if (!text && imageAttachments.length === 0 && textAttachments.length === 0) return;
   if (!deps.rateLimiter.check(msg.author.id)) {
     void msg.react('⏳').catch(() => {});
     return;
@@ -208,28 +212,42 @@ async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueue): Pro
   const channel = msg.channel;
   await queue(msg.channelId, async () => {
     const refContext = await getReferencedContext(msg, botId);
-    const promptText = text || 'Describe or answer based on the attached image.';
+    const promptText =
+      text ||
+      (imageAttachments.length > 0
+        ? 'Describe or answer based on the attached image.'
+        : 'Analyze or answer based on the attached file.');
     const userText = refContext
       ? `${refContext}\n${msg.author.displayName}: ${promptText}`
       : `${msg.author.displayName}: ${promptText}`;
 
-    const dataUris = await Promise.all(
-      imageAttachments.map((a) => toDataUri(a.url, a.contentType ?? 'image/jpeg')),
-    );
+    const [dataUris, textFiles] = await Promise.all([
+      Promise.all(imageAttachments.map((a) => toDataUri(a.url, a.contentType ?? 'image/jpeg'))),
+      Promise.all(textAttachments.map((a) => toTextContent(a.url, a.name))),
+    ]);
     const validImages = dataUris.filter((u): u is string => u !== null);
+    const validTexts = textFiles.filter((t): t is string => t !== null);
+
+    const fullPrompt = validTexts.length > 0 ? `${userText}\n\n${validTexts.join('\n\n')}` : userText;
 
     const question: ChatMessage = validImages.length === 0
-      ? { role: 'user', content: userText }
+      ? { role: 'user', content: fullPrompt }
       : {
           role: 'user',
           content: [
-            { type: 'text', text: userText },
+            { type: 'text', text: fullPrompt },
             ...validImages.map((url): MessagePart => ({ type: 'image_url', image_url: { url } })),
           ],
         };
+
+    const attachSummary = [
+      validImages.length ? `${validImages.length} image(s)` : '',
+      validTexts.length ? `${validTexts.length} file(s)` : '',
+    ].filter(Boolean).join(', ');
+
     const memoryQuestion: ChatMessage = {
       role: 'user',
-      content: validImages.length > 0 ? `${userText} [Attached ${validImages.length} image(s)]` : userText,
+      content: attachSummary ? `${userText} [Attached ${attachSummary}]` : userText,
     };
     let answer: string;
     try {
@@ -286,6 +304,33 @@ async function toDataUri(url: string, contentType: string): Promise<string | nul
     if (!res.ok) return null;
     const buf = Buffer.from(await res.arrayBuffer());
     return `data:${contentType};base64,${buf.toString('base64')}`;
+  } catch {
+    return null;
+  }
+}
+
+const TEXT_EXTENSIONS: Record<string, true> = {
+  txt: true, md: true, json: true, js: true, ts: true, tsx: true, jsx: true,
+  py: true, rs: true, go: true, c: true, cpp: true, h: true, hpp: true,
+  css: true, html: true, xml: true, yaml: true, yml: true, toml: true,
+  sh: true, bash: true, sql: true, env: true, log: true, csv: true, diff: true, patch: true,
+};
+
+function isTextAttachment(a: Attachment): boolean {
+  if (a.contentType?.startsWith('text/') || a.contentType === 'application/json') {
+    return true;
+  }
+  const ext = a.name?.split('.').pop()?.toLowerCase();
+  return ext !== undefined && TEXT_EXTENSIONS[ext] === true;
+}
+
+/** Downloads a text or code attachment, bounded to 20,000 characters. */
+async function toTextContent(url: string, name: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+    if (!res.ok) return null;
+    const text = await res.text();
+    return `[Attached file: ${name}]\n\`\`\`\n${text.slice(0, 20_000)}\n\`\`\``;
   } catch {
     return null;
   }
