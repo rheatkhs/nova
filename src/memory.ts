@@ -26,6 +26,9 @@ export class ConversationMemory {
   readonly #getLanguageStmt: Statement<{ language: string }, [string]>;
   readonly #setLanguageStmt: Statement<void, [string, string, number]>;
   readonly #clearLanguageStmt: Statement<void, [string]>;
+  readonly #getVoiceStmt: Statement<{ voice: string }, [string]>;
+  readonly #setVoiceStmt: Statement<void, [string, string, number]>;
+  readonly #clearVoiceStmt: Statement<void, [string]>;
   readonly #replaceAssistantStmt: Statement<void, [string, string]>;
 
   constructor(limit: number, path = 'data/nova.db') {
@@ -64,6 +67,11 @@ export class ConversationMemory {
       CREATE TABLE IF NOT EXISTS channel_languages (
         channel_id TEXT PRIMARY KEY,
         language TEXT NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS channel_voices (
+        channel_id TEXT PRIMARY KEY,
+        voice TEXT NOT NULL,
         updated_at INTEGER NOT NULL
       );
     `);
@@ -106,6 +114,12 @@ export class ConversationMemory {
       ON CONFLICT(channel_id) DO UPDATE SET language = excluded.language, updated_at = excluded.updated_at
     `);
     this.#clearLanguageStmt = this.#db.prepare('DELETE FROM channel_languages WHERE channel_id = ?');
+    this.#getVoiceStmt = this.#db.prepare('SELECT voice FROM channel_voices WHERE channel_id = ?');
+    this.#setVoiceStmt = this.#db.prepare(`
+      INSERT INTO channel_voices (channel_id, voice, updated_at) VALUES (?, ?, ?)
+      ON CONFLICT(channel_id) DO UPDATE SET voice = excluded.voice, updated_at = excluded.updated_at
+    `);
+    this.#clearVoiceStmt = this.#db.prepare('DELETE FROM channel_voices WHERE channel_id = ?');
     this.#replaceAssistantStmt = this.#db.prepare(`
       UPDATE messages SET content = ? WHERE id = (
         SELECT id FROM messages WHERE channel_id = ? AND role = 'assistant' ORDER BY id DESC LIMIT 1
@@ -197,6 +211,19 @@ export class ConversationMemory {
 
   clearLanguage(channelId: string): void {
     this.#clearLanguageStmt.run(channelId);
+  }
+
+  getVoice(channelId: string): string | null {
+    const row = this.#getVoiceStmt.get(channelId);
+    return row?.voice ?? null;
+  }
+
+  setVoice(channelId: string, voice: string): void {
+    this.#setVoiceStmt.run(channelId, voice, Date.now());
+  }
+
+  clearVoice(channelId: string): void {
+    this.#clearVoiceStmt.run(channelId);
   }
   stats(): { totalMessages: number; channels: number } {
     const row = this.#db

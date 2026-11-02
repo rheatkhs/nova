@@ -181,7 +181,8 @@ export async function handleButton(interaction: ButtonInteraction, deps: BotDeps
     }
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     try {
-      const audioBuf = await generateSpeechAudio(rawText.slice(0, 450));
+      const locale = deps.memory.getVoice(interaction.channelId) || 'en';
+      const audioBuf = await generateSpeechAudio(rawText.slice(0, 450), locale);
       const file = new AttachmentBuilder(audioBuf, { name: 'speech.mp3' });
       await interaction.editReply({
         content: '🔊 **Voice Readout:**',

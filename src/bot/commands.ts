@@ -81,12 +81,12 @@ export const BOT_COMMANDS: readonly ApplicationCommandDataResolvable[] = [
     ],
   },
   {
-    name: 'language',
-    description: 'View, set, or clear preferred response language for this channel',
+    name: 'voice',
+    description: 'View, set, or clear preferred TTS voice locale for this channel',
     options: [
       {
-        name: 'name',
-        description: 'Language name (e.g. Vietnamese, English, Japanese, or "reset" to clear)',
+        name: 'locale',
+        description: 'Voice locale code (e.g. en-US, en-GB, vi, ja, fr, or "reset" to clear)',
         type: 3, // ApplicationCommandOptionType.String
         required: false,
         autocomplete: true,

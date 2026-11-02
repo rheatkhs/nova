@@ -92,7 +92,7 @@ test('generateSpeechAudio produces an audio buffer', async () => {
   });
 
   try {
-    const buf = await generateSpeechAudio('Hello Discord!', 'http://127.0.0.1:3955/tts');
+    const buf = await generateSpeechAudio('Hello Discord!', 'en', 'http://127.0.0.1:3955/tts');
     expect(Buffer.isBuffer(buf)).toBe(true);
     expect(buf.toString()).toBe('FAKE_MP3_DATA');
   } finally {
