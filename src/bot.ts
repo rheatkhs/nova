@@ -201,7 +201,7 @@ export function updatePresence(client: Client, stats: BotStats): void {
 
 async function handleInteraction(interaction: Interaction, deps: BotDeps): Promise<void> {
   if (interaction.isButton()) {
-    await handleButton(interaction);
+    await handleButton(interaction, deps);
     return;
   }
   if (interaction.isMessageContextMenuCommand()) {
@@ -939,6 +939,11 @@ function buildActionRow(authorId: string, canThread: boolean) {
   }
   row.addComponents(
     new ButtonBuilder()
+      .setCustomId(`regen:${authorId}`)
+      .setLabel('Regenerate')
+      .setEmoji('🔄')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
       .setCustomId('save')
       .setLabel('Save')
       .setEmoji('📩')
@@ -987,7 +992,7 @@ function buildModelSelectMenu(currentModel: string | null) {
   return row;
 }
 
-async function handleButton(interaction: ButtonInteraction): Promise<void> {
+async function handleButton(interaction: ButtonInteraction, deps: BotDeps): Promise<void> {
   if (interaction.customId === 'save') {
     try {
       const text = interaction.message.content || '*(No text content)*';
@@ -1008,6 +1013,89 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
     return;
   }
   const [action, authorId] = interaction.customId.split(':');
+  if (action === 'regen' && authorId) {
+    const isAuthor = interaction.user.id === authorId;
+    if (!isAuthor) {
+      await interaction.reply({
+        content: 'Only the author of the question can regenerate this response.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    if (!deps.rateLimiter.check(interaction.user.id)) {
+      await interaction.reply({
+        content: '⏳ You are sending requests too quickly. Please wait a moment.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    const history = deps.memory.get(interaction.channelId, deps.historyCharLimit);
+    if (history.length === 0) {
+      await interaction.reply({
+        content: 'No prior conversation found to regenerate.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    const priorContext =
+      history.at(-1)?.role === 'assistant' ? history.slice(0, -1) : history;
+    if (priorContext.length === 0) return;
+
+    await interaction.deferUpdate();
+
+    const channelPrompt = deps.memory.getPrompt(interaction.channelId) ?? undefined;
+    const channelModel = deps.memory.getModel(interaction.channelId) ?? undefined;
+    const channelTemperature = deps.memory.getTemperature(interaction.channelId) ?? undefined;
+    const channelLanguage = deps.memory.getLanguage(interaction.channelId) ?? undefined;
+    const channel = interaction.channel;
+    const channelTool = channel ? createChannelHistoryTool(channel) : undefined;
+    const toolsUsed: string[] = [];
+
+    try {
+      const t0 = Date.now();
+      const answer = await deps.chat(priorContext, {
+        model: channelModel,
+        systemPrompt: channelPrompt,
+        temperature: channelTemperature,
+        language: channelLanguage,
+        extraTools: channelTool ? [channelTool] : undefined,
+        onToolStart: (tool) => {
+          toolsUsed.push(tool);
+          deps.stats.toolCalls++;
+        },
+      });
+      deps.stats.lastResponseMs = Date.now() - t0;
+      deps.memory.replaceLastAssistant(interaction.channelId, answer);
+      deps.stats.answered++;
+      deps.stats.consecutiveFailures = 0;
+
+      const footer = formatFooter({
+        model: channelModel ?? 'default',
+        latencyMs: deps.stats.lastResponseMs,
+        toolsUsed,
+      });
+      const parts = chunk(answer);
+      const canThread = interaction.inGuild() && !interaction.channel?.isThread();
+      const row = buildActionRow(authorId, canThread);
+
+      await interaction.editReply({
+        content: `${parts[0] ?? ''}${footer}`,
+        components: [row],
+        allowedMentions: NO_PINGS,
+      });
+    } catch (err) {
+      deps.stats.failed++;
+      deps.stats.consecutiveFailures++;
+      console.error(err);
+      await interaction.followUp({
+        content: 'Failed to regenerate response, try again later.',
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+    return;
+  }
   if (action === 'del') {
     const isAuthor = interaction.user.id === authorId;
     const canManage = Boolean(
