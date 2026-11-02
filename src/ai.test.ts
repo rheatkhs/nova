@@ -50,8 +50,11 @@ test('createChat allows overriding systemPrompt per-call', async () => {
       model: 'test-model',
       systemPrompt: 'default sys',
     });
-    await chat([{ role: 'user', content: 'hi' }], { systemPrompt: 'custom persona' });
-    expect(receivedSys).toBe('custom persona');
+    await chat([{ role: 'user', content: 'hi' }], {
+      systemPrompt: 'custom persona',
+      now: new Date('2026-11-02T12:00:00Z'),
+    });
+    expect(receivedSys).toBe('custom persona\n\nCurrent time: 2026-11-02 (Monday, UTC).');
   } finally {
     server.stop();
   }
