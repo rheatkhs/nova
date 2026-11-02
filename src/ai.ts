@@ -28,6 +28,8 @@ export interface AiOptions {
   systemPrompt: string;
   tools?: readonly Tool[];
   maxToolSteps?: number;
+  retries?: number;
+  retryDelayMs?: number;
   timeoutMs?: number;
 }
 
@@ -64,6 +66,8 @@ export function createChat({
   systemPrompt,
   tools = [],
   maxToolSteps = 5,
+  retries = 1,
+  retryDelayMs = 1_000,
   timeoutMs = 120_000,
 }: AiOptions): Chat {
   const url = `${baseUrl.replace(/\/+$/, '')}/chat/completions`;
@@ -102,12 +106,17 @@ export function createChat({
         body.tool_choice = 'auto';
       }
 
-      const res = await fetch(url, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(timeoutMs),
-      });
+      const res = await fetchWithRetry(
+        url,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(timeoutMs),
+        },
+        retries,
+        retryDelayMs,
+      );
       if (!res.ok) throw new Error(`AI request failed (${res.status}): ${(await res.text()).slice(0, 300)}`);
 
       const data = (await res.json()) as CompletionResponse;
@@ -156,4 +165,35 @@ export function createChat({
 
     return 'Agent reached max tool execution steps.';
   };
+}
+
+const TRANSIENT_STATUSES: Record<number, true> = {
+  429: true,
+  500: true,
+  502: true,
+  503: true,
+  504: true,
+};
+
+/** Performs fetch with retries on transient errors (429 rate limit or 5xx gateway/server errors). */
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  retries: number,
+  delayMs: number,
+): Promise<Response> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    if (attempt > 0 && delayMs > 0) {
+      await Bun.sleep(delayMs);
+    }
+    try {
+      const res = await fetch(url, init);
+      if (res.ok || !TRANSIENT_STATUSES[res.status] || attempt === retries) {
+        return res;
+      }
+    } catch (err) {
+      if (attempt === retries) throw err;
+    }
+  }
+  throw new Error('AI request failed: retry attempts exhausted');
 }
