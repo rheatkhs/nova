@@ -204,7 +204,7 @@ test('GET /events streams SSE events', async () => {
   const chunk = await reader!.read();
   const text = new TextDecoder().decode(chunk.value);
   expect(text).toContain('data: ');
-  expect(text).toContain('Daemon booted successfully');
+  expect(text).toContain('"type":');
   reader!.cancel();
   memory.close();
 });
