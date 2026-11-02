@@ -772,6 +772,11 @@ function buildActionRow(authorId: string, canThread: boolean) {
   }
   row.addComponents(
     new ButtonBuilder()
+      .setCustomId('save')
+      .setLabel('Save')
+      .setEmoji('📩')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
       .setCustomId(`del:${authorId}`)
       .setLabel('Delete')
       .setEmoji('🗑️')
@@ -781,6 +786,25 @@ function buildActionRow(authorId: string, canThread: boolean) {
 }
 
 async function handleButton(interaction: ButtonInteraction): Promise<void> {
+  if (interaction.customId === 'save') {
+    try {
+      const text = interaction.message.content || '*(No text content)*';
+      const jumpUrl = interaction.message.url;
+      await interaction.user.send({
+        content: `**Saved from Nova:**\n${text}\n\n[Jump to message](${jumpUrl})`,
+      });
+      await interaction.reply({
+        content: '📩 Answer sent to your DMs!',
+        flags: MessageFlags.Ephemeral,
+      });
+    } catch {
+      await interaction.reply({
+        content: 'Could not send DM. Please enable direct messages from server members in your privacy settings.',
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+    return;
+  }
   const [action, authorId] = interaction.customId.split(':');
   if (action === 'del') {
     const isAuthor = interaction.user.id === authorId;
