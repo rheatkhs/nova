@@ -1011,6 +1011,11 @@ function buildActionRow(authorId: string, canThread: boolean, withCode = false) 
   }
   row.addComponents(
     new ButtonBuilder()
+      .setCustomId('tts')
+      .setLabel('Listen')
+      .setEmoji('🔊')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
       .setCustomId(`regen:${authorId}`)
       .setLabel('Regenerate')
       .setEmoji('🔄')
@@ -1065,6 +1070,30 @@ function buildModelSelectMenu(currentModel: string | null) {
 }
 
 async function handleButton(interaction: ButtonInteraction, deps: BotDeps): Promise<void> {
+  if (interaction.customId === 'tts') {
+    const rawText = interaction.message.content.replace(/^-#.*$/gm, '').replace(/```[\s\S]*?```/g, '').trim();
+    if (!rawText) {
+      await interaction.reply({
+        content: 'No readable speech text found in this response.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    try {
+      const audioBuf = await generateSpeechAudio(rawText.slice(0, 450));
+      const file = new AttachmentBuilder(audioBuf, { name: 'speech.mp3' });
+      await interaction.editReply({
+        content: '🔊 **Voice Readout:**',
+        files: [file],
+      });
+    } catch {
+      await interaction.editReply({
+        content: 'Could not generate speech audio at this time.',
+      });
+    }
+    return;
+  }
   if (interaction.customId === 'save') {
     try {
       const text = interaction.message.content || '*(No text content)*';
@@ -1310,4 +1339,16 @@ export function extractCodeSnippet(text: string): { code: string; ext: string } 
   const code = match[2]!.trim();
   const ext = CODE_EXTENSIONS[rawLang] || rawLang || 'txt';
   return { code, ext };
+}
+
+/** Generates MP3 audio buffer from text using zero-key standard TTS. */
+export async function generateSpeechAudio(text: string): Promise<Buffer> {
+  const clean = text.replace(/[*_#`~>]/g, ' ').replace(/\s+/g, ' ').trim();
+  const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(clean)}&tl=en&client=tw-ob`;
+  const res = await fetch(url, {
+    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!res.ok) throw new Error(`TTS service error (${res.status})`);
+  return Buffer.from(await res.arrayBuffer());
 }
