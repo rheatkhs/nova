@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { createChannelHistoryTool, createPollTool, createQuizTool, createReminderTool, evalMathTool, evaluateMath, fetchPageTool, generateImageTool, getCurrentTimeTool, getQuizItem, getSandboxSnippet, renderChartTool, renderDiagramTool, renderHtmlTool, runCodeTool, testWebhookTool, webSearchTool, wikipediaSearchTool } from './tools.ts';
+import { createChannelHistoryTool, createPollTool, createQuizTool, createReminderTool, evalMathTool, evaluateMath, fetchPageTool, generateImageTool, getCurrentTimeTool, getQuizItem, getSandboxSnippet, playSpotifyTool, renderChartTool, renderDiagramTool, renderHtmlTool, runCodeTool, testWebhookTool, webSearchTool, wikipediaSearchTool } from './tools.ts';
 
 test('get_current_time returns valid UTC date info', async () => {
   const result = JSON.parse(await getCurrentTimeTool.execute({}));
@@ -330,4 +330,35 @@ test('runCodeTool handles syntax errors and stderr output', async () => {
 
   expect(res).toContain('Exit code: 1');
   expect(res).toContain('Test error trace');
+});
+
+test('playSpotifyTool validates query and searches iTunes/Spotify mock', async () => {
+  expect(await playSpotifyTool.execute({})).toBe('Error: query is required');
+  expect(await playSpotifyTool.execute({ query: '   ' })).toBe('Error: query is required');
+
+  const origFetch = globalThis.fetch;
+  globalThis.fetch = (async () => {
+    return Response.json({
+      results: [
+        {
+          trackName: 'Shape of You',
+          artistName: 'Ed Sheeran',
+          collectionName: '÷',
+          previewUrl: 'https://audio.preview.com/shape.m4a',
+          artworkUrl100: 'https://artwork.com/100x100bb.jpg',
+          trackTimeMillis: 233000,
+        },
+      ],
+    });
+  }) as unknown as typeof fetch;
+
+  try {
+    const res = await playSpotifyTool.execute({ query: 'Shape of You' });
+    expect(res).toContain('Shape of You');
+    expect(res).toContain('Ed Sheeran');
+    expect(res).toContain('÷');
+    expect(res).toContain('https://audio.preview.com/shape.m4a');
+  } finally {
+    globalThis.fetch = origFetch;
+  }
 });
