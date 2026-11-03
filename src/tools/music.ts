@@ -115,6 +115,7 @@ export function createPlayMusicTool(getContext?: () => { message?: Message }): T
           `• **Title:** ${newTrack.title}`,
           `• **Duration:** ${newTrack.durationFormatted}`,
           newTrack.thumbnail ? `• **Artwork:** ${newTrack.thumbnail}` : '',
+          `• **YouTube URL:** ${newTrack.url}`,
           `• **Position in Queue:** #${position}`,
           `• **Requested By:** ${newTrack.requestedBy}`,
         ];
