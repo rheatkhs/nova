@@ -12,7 +12,8 @@ import {
 import { YouTube } from 'youtube-sr';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const ytdl = require('@distube/ytdl-core');
+const { Ytdl } = require('@distube/ytdl-core');
+const ytdl = new Ytdl();
 
 export interface PlayMusicArgs {
   query: string;
@@ -100,7 +101,7 @@ export function createPlayMusicTool(getContext?: () => { message?: Message }): T
 
               await entersState(connection, VoiceConnectionStatus.Ready, 20_000);
 
-              const stream = ytdl.default(videoUrl, {
+              const stream = ytdl.download(videoUrl, {
                 filter: 'audioonly',
                 quality: 'highestaudio',
                 highWaterMark: 1 << 25,
