@@ -167,7 +167,7 @@ export async function handleButton(interaction: ButtonInteraction, deps: BotDeps
       await interaction.reply({
         content: 'This quiz has expired.',
         flags: MessageFlags.Ephemeral,
-      });
+      }).catch(() => {});
       return;
     }
     const chosenIndex = Number(idxStr);
