@@ -147,6 +147,7 @@ export function createPlayMusicTool(getContext?: () => { message?: Message }): T
 
         const controlRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
           new ButtonBuilder().setCustomId('pause').setLabel('Pause/Resume').setEmoji('⏯️').setStyle(ButtonStyle.Secondary),
+          new ButtonBuilder().setCustomId('music-skip').setLabel('Skip').setEmoji('⏭️').setStyle(ButtonStyle.Secondary),
           new ButtonBuilder().setCustomId('music-stop').setLabel('Stop').setEmoji('⏹️').setStyle(ButtonStyle.Danger),
         );
 
