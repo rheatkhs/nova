@@ -18,16 +18,7 @@ export const evalMathTool: Tool = {
       const result = evaluateMath(expr);
       if (!Number.isFinite(result)) return 'Error: result is not a finite number';
 
-      const formatted = [
-        `🧮 **Mathematical Calculation**`,
-        `\`\`\`latex`,
-        `Equation: ${expr}`,
-        `Result:   ${result}`,
-        `\`\`\``,
-        `- ✨ **Formatted Result:** \`${result}\``,
-      ].join('\n');
-
-      return formatted;
+      return `🧮 **Result:** \`${expr} = ${result}\``;
     } catch (err) {
       return `Math error: ${err instanceof Error ? err.message : String(err)}`;
     }
