@@ -8,12 +8,16 @@ import {
   VoiceConnectionStatus,
   entersState,
   type DiscordGatewayAdapterCreator,
+  type AudioPlayer,
 } from '@discordjs/voice';
 import { YouTube } from 'youtube-sr';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { Ytdl } = require('@distube/ytdl-core');
 const ytdl = new Ytdl();
+
+// Global active audio players store per guild ID for pause/resume control
+export const ACTIVE_PLAYERS = new Map<string, { player: AudioPlayer; paused: boolean }>();
 
 export interface PlayMusicArgs {
   query: string;
@@ -113,10 +117,13 @@ export function createPlayMusicTool(getContext?: () => { message?: Message }): T
               player.play(resource);
               connection.subscribe(player);
 
+              ACTIVE_PLAYERS.set(guild.id, { player, paused: false });
+
               player.on('error', (error) => {
                 console.error('Audio player error:', error);
               });
               player.on(AudioPlayerStatus.Idle, () => {
+                ACTIVE_PLAYERS.delete(guild.id);
                 try {
                   connection.destroy();
                 } catch {}

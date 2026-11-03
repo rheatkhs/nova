@@ -11,6 +11,7 @@ import type { BotDeps } from './types.ts';
 import { NO_PINGS } from './types.ts';
 import { extractCodeSnippet } from './code.ts';
 import { generateSpeechAudio } from './tts.ts';
+import { ACTIVE_PLAYERS } from '../tools/music.ts';
 import { getQuizItem, createChannelHistoryTool } from '../tools/index.ts';
 import { formatFooter } from './footer.ts';
 import { chunk } from '../chunk.ts';
@@ -109,9 +110,9 @@ export function buildActionRow(authorId: string, canThread: boolean, withCode = 
   if (row.components.length < 5) {
     row.addComponents(
       new ButtonBuilder()
-        .setCustomId('tts')
-        .setLabel('Listen')
-        .setEmoji('🔊')
+        .setCustomId('pause')
+        .setLabel('Pause/Resume')
+        .setEmoji('⏯️')
         .setStyle(ButtonStyle.Secondary),
     );
   }
@@ -210,7 +211,28 @@ export async function handleButton(interaction: ButtonInteraction, deps: BotDeps
     }
     return;
   }
-
+  if (interaction.customId === 'pause') {
+    const guildId = interaction.guildId;
+    if (!guildId) {
+      await interaction.reply({ content: 'Music controls only work inside servers.', flags: MessageFlags.Ephemeral });
+      return;
+    }
+    const active = ACTIVE_PLAYERS.get(guildId);
+    if (!active) {
+      await interaction.reply({ content: 'No active music playing in this server.', flags: MessageFlags.Ephemeral });
+      return;
+    }
+    if (active.paused) {
+      active.player.unpause();
+      active.paused = false;
+      await interaction.reply({ content: '▶️ **Resumed music playback.**', flags: MessageFlags.Ephemeral });
+    } else {
+      active.player.pause();
+      active.paused = true;
+      await interaction.reply({ content: '⏸️ **Paused music playback.**', flags: MessageFlags.Ephemeral });
+    }
+    return;
+  }
   if (interaction.customId === 'save') {
     try {
       const text = interaction.message.content || '*(No text content)*';
