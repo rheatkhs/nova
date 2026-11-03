@@ -1,5 +1,6 @@
 import type { Tool } from './types.ts';
 import type { Message, Guild } from 'discord.js';
+import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import {
   joinVoiceChannel,
   createAudioPlayer,
@@ -47,7 +48,7 @@ export function createPlayMusicTool(getContext?: () => { message?: Message }): T
   return {
     name: 'play_music',
     description:
-      'Search for a song and queue/stream full-length tracks live into the user voice channel with professional queue management, skip, stop, and loop controls. Supports English and Indonesian.',
+      'Search for a song and queue/stream full-length tracks live into the user voice channel with professional queue management, embeds, pagination, and player controls.',
     parameters: {
       type: 'object',
       properties: {
@@ -72,72 +73,6 @@ export function createPlayMusicTool(getContext?: () => { message?: Message }): T
         const results = await YouTube.search(query, { limit: 1, type: 'video' });
         const topVideo = results[0];
         if (!topVideo || !topVideo.url) {
-          const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song&limit=1`;
-          const res = await fetch(itunesUrl, { signal: AbortSignal.timeout(10_000) });
-          if (res.ok) {
-            const data = (await res.json()) as {
-              results?: Array<{
-                trackName: string;
-                artistName: string;
-                collectionName: string;
-                previewUrl?: string;
-                artworkUrl100?: string;
-                trackTimeMillis?: number;
-              }>;
-            };
-            const track = data.results?.[0];
-            if (track) {
-              const durationSec = Math.round((track.trackTimeMillis ?? 0) / 1_000);
-              const mins = Math.floor(durationSec / 60);
-              const secs = durationSec % 60;
-              const durationStr = `${mins}:${secs.toString().padStart(2, '0')}`;
-              
-              const previewTrack: Track = {
-                title: `${track.trackName} - ${track.artistName}`,
-                durationFormatted: durationStr,
-                url: track.previewUrl || '',
-                thumbnail: track.artworkUrl100 ? track.artworkUrl100.replace('100x100bb', '400x400bb') : null,
-                requestedBy: msg.author.username,
-              };
-
-              let state = ACTIVE_PLAYERS.get(guild.id);
-              if (!state) {
-                state = {
-                  connection: null,
-                  player: createAudioPlayer(),
-                  queue: [],
-                  current: null,
-                  paused: false,
-                  loop: false,
-                };
-                ACTIVE_PLAYERS.set(guild.id, state);
-              }
-
-              const memberVoiceChannel = msg?.member?.voice?.channel;
-              const targetVoiceId = String(args.voiceChannelId || memberVoiceChannel?.id || '');
-
-              if (state.current) {
-                state.queue.push(previewTrack);
-                return [
-                  `🎵 **Added to Queue (Position #${state.queue.length})**`,
-                  `• **Title:** ${previewTrack.title}`,
-                  `• **Duration:** ${previewTrack.durationFormatted}`,
-                  previewTrack.thumbnail ? `• **Artwork:** ${previewTrack.thumbnail}` : '',
-                  `• **Requested By:** ${previewTrack.requestedBy}`,
-                ].filter(Boolean).join('\n');
-              } else {
-                state.current = previewTrack;
-                return [
-                  `🎶 **Now Playing (Fallback Preview)**`,
-                  `• **Title:** ${previewTrack.title}`,
-                  `• **Duration:** ${previewTrack.durationFormatted}`,
-                  previewTrack.thumbnail ? `• **Artwork:** ${previewTrack.thumbnail}` : '',
-                  previewTrack.url ? `• **Stream URL:** ${previewTrack.url}` : '',
-                  `• **Requested By:** ${previewTrack.requestedBy}`,
-                ].filter(Boolean).join('\n');
-              }
-            }
-          }
           return `No matching full-length tracks found for "${query}"`;
         }
 
@@ -170,36 +105,56 @@ export function createPlayMusicTool(getContext?: () => { message?: Message }): T
           return `🎵 Added **${newTrack.title}** to the queue (Position #${state.queue.length}). *Join a voice channel to start streaming.*`;
         }
 
-        // Professional Queue Logic:
-        // If a track is already currently playing or paused, push the new track into the queue.
-        // Otherwise, set it as current and play immediately.
         if (state.current) {
           state.queue.push(newTrack);
-          return [
-            `🎵 **Added to Queue (Position #${state.queue.length})**`,
-            `• **Title:** ${newTrack.title}`,
-            `• **Duration:** ${newTrack.durationFormatted}`,
-            newTrack.thumbnail ? `• **Artwork:** ${newTrack.thumbnail}` : '',
-            `• **YouTube URL:** ${newTrack.url}`,
-            `• **Requested By:** ${newTrack.requestedBy}`,
-          ].filter(Boolean).join('\n');
+          
+          // Build professional embed response for added to queue
+          const embed = new EmbedBuilder()
+            .setColor(0x1DB954) // Spotify green
+            .setTitle('🎵 Added to Queue')
+            .setDescription(`[${newTrack.title}](${newTrack.url})`)
+            .addFields(
+              { name: '⏱️ Duration', value: newTrack.durationFormatted, inline: true },
+              { name: '📊 Queue Position', value: `#${state.queue.length}`, inline: true },
+              { name: '👤 Requested By', value: newTrack.requestedBy, inline: true },
+            );
+
+          if (newTrack.thumbnail) embed.setThumbnail(newTrack.thumbnail);
+
+          if (msg && msg.channel && msg.channel.isSendable()) {
+            await msg.channel.send({ embeds: [embed] });
+          }
+
+          return `Added **${newTrack.title}** to queue at position #${state.queue.length}.`;
         }
 
-        // Start playback immediately for the first track
         state.current = newTrack;
         await playNextInQueue(guild.id, targetVoiceId, guild, newTrack);
 
-        const lines = [
-          `🎶 **Now Playing Full Track (FlaviBot Style)**`,
-          `• **Title:** ${newTrack.title}`,
-          `• **Duration:** ${newTrack.durationFormatted}`,
-          newTrack.thumbnail ? `• **Artwork:** ${newTrack.thumbnail}` : '',
-          `• **YouTube URL:** ${newTrack.url}`,
-          `• **Position in Queue:** #1 (Now Playing)`,
-          `• **Requested By:** ${newTrack.requestedBy}`,
-        ];
+        const embed = new EmbedBuilder()
+          .setColor(0x1DB954)
+          .setTitle('🎶 Now Playing')
+          .setDescription(`[${newTrack.title}](${newTrack.url})`)
+          .addFields(
+            { name: '⏱️ Duration', value: newTrack.durationFormatted, inline: true },
+            { name: '👤 Requested By', value: newTrack.requestedBy, inline: true },
+          );
 
-        return lines.filter(Boolean).join('\n');
+        if (newTrack.thumbnail) {
+          embed.setThumbnail(newTrack.thumbnail);
+          embed.setImage(newTrack.thumbnail);
+        }
+
+        const controlRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder().setCustomId('pause').setLabel('Pause/Resume').setEmoji('⏯️').setStyle(ButtonStyle.Secondary),
+          new ButtonBuilder().setCustomId('music-stop').setLabel('Stop').setEmoji('⏹️').setStyle(ButtonStyle.Danger),
+        );
+
+        if (msg && msg.channel && msg.channel.isSendable()) {
+          await msg.channel.send({ embeds: [embed], components: [controlRow] });
+        }
+
+        return `Now playing **${newTrack.title}** in voice channel.`;
       } catch (err) {
         return `Music playback failed: ${err instanceof Error ? err.message : String(err)}`;
       }

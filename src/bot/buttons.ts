@@ -233,6 +233,31 @@ export async function handleButton(interaction: ButtonInteraction, deps: BotDeps
     }
     return;
   }
+  if (interaction.customId === 'music-stop') {
+    const guildId = interaction.guildId;
+    if (!guildId) {
+      await interaction.reply({ content: 'Music controls only work inside servers.', flags: MessageFlags.Ephemeral });
+      return;
+    }
+    const active = ACTIVE_PLAYERS.get(guildId);
+    if (!active) {
+      await interaction.reply({ content: 'No active music playing in this server.', flags: MessageFlags.Ephemeral });
+      return;
+    }
+    try {
+      active.queue = [];
+      active.current = null;
+      active.player.stop(true);
+      if (active.connection) {
+        active.connection.destroy();
+      }
+      ACTIVE_PLAYERS.delete(guildId);
+      await interaction.reply({ content: '⏹️ **Stopped music playback and cleared queue.**', flags: MessageFlags.Ephemeral });
+    } catch (err) {
+      await interaction.reply({ content: `Failed to stop music: ${err instanceof Error ? err.message : String(err)}`, flags: MessageFlags.Ephemeral });
+    }
+    return;
+  }
   if (interaction.customId === 'save') {
     try {
       const text = interaction.message.content || '*(No text content)*';
