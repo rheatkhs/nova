@@ -13,6 +13,7 @@ import { generateImageTool } from './image.ts';
 import { testWebhookTool } from './webhook.ts';
 import { runCodeTool } from './repl.ts';
 import { playSpotifyTool } from './spotify.ts';
+import { essayExamTool } from './essay-exam.ts';
 export * from './types.ts';
 export * from './time.ts';
 export * from './math.ts';
@@ -30,6 +31,7 @@ export * from './channel-history.ts';
 export * from './reminder.ts';
 export * from './repl.ts';
 export * from './spotify.ts';
+export * from './essay-exam.ts';
 export const defaultTools: readonly Tool[] = [
   getCurrentTimeTool,
   evalMathTool,
@@ -45,4 +47,5 @@ export const defaultTools: readonly Tool[] = [
   testWebhookTool,
   runCodeTool,
   playSpotifyTool,
+  essayExamTool,
 ];
