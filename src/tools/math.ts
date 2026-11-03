@@ -1,31 +1,52 @@
 import type { Tool } from './types.ts';
+import { AttachmentBuilder, type Message } from 'discord.js';
+import { renderMathToPng } from './math-renderer.ts';
 
-export const evalMathTool: Tool = {
-  name: 'eval_math',
-  description:
-    'Evaluate a safe mathematical expression and return a clean, neatly formatted step-by-step mathematical breakdown and result block.',
-  parameters: {
-    type: 'object',
-    properties: {
-      expression: { type: 'string', description: 'Mathematical expression, e.g. "sqrt(144) + 12 * 3.5"' },
+export function createEvalMathTool(getContext?: () => { message?: Message }): Tool {
+  return {
+    name: 'eval_math',
+    description:
+      'Evaluate a mathematical expression or render a LaTeX math formula into a pristine typeset image and result block.',
+    parameters: {
+      type: 'object',
+      properties: {
+        expression: { type: 'string', description: 'Mathematical expression to calculate, e.g. "sqrt(144) + 12 * 3.5"' },
+        latex: { type: 'string', description: 'Optional LaTeX formula notation to render as a typeset image, e.g. "\\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}"' },
+      },
+      required: ['expression'],
     },
-    required: ['expression'],
-  },
-  async execute(args): Promise<string> {
-    const expr = String(args.expression || '').trim();
-    if (!expr) return 'Error: expression is required';
-    try {
-      const result = evaluateMath(expr);
-      if (!Number.isFinite(result)) return 'Error: result is not a finite number';
+    async execute(args): Promise<string> {
+      const expr = String(args.expression || '').trim();
+      const latex = String(args.latex || expr).trim();
+      if (!expr && !latex) return 'Error: expression or latex is required';
 
-      return `🧮 **Result:** \`${expr} = ${result}\``;
-    } catch (err) {
-      return `Math error: ${err instanceof Error ? err.message : String(err)}`;
-    }
-  },
-};
+      const ctx = getContext?.();
+      const msg = ctx?.message;
 
-/** Safe recursive-descent math expression evaluator with zero eval/Function usage. */
+      try {
+        const result = evaluateMath(expr || '0');
+        if (!Number.isFinite(result)) return 'Error: result is not a finite number';
+
+        const pngBuf = renderMathToPng(latex);
+        const file = new AttachmentBuilder(pngBuf, { name: 'formula.png' });
+
+        if (msg && msg.channel && msg.channel.isSendable()) {
+          await msg.channel.send({
+            content: `📐 **Typeset Mathematical Formula:**`,
+            files: [file],
+          });
+        }
+
+        return `🧮 **Calculation Result:** \`${expr} = ${result}\``;
+      } catch (err) {
+        return `Math error: ${err instanceof Error ? err.message : String(err)}`;
+      }
+    },
+  };
+}
+
+export const evalMathTool = createEvalMathTool();
+
 export function evaluateMath(expr: string): number {
   let pos = 0;
   const s = expr.replace(/\s+/g, '');
@@ -80,18 +101,18 @@ export function evaluateMath(expr: string): number {
       pos++;
       return val;
     }
-    const nameMatch = s.slice(pos).match(/^[a-zA-Z]+/);
-    if (nameMatch) {
-      const name = nameMatch[0].toLowerCase();
-      pos += name.length;
-      if (name === 'pi') return Math.PI;
-      if (name === 'e') return Math.E;
+
+    if (/[a-zA-Z_]/.test(s[pos] ?? '')) {
+      let id = '';
+      while (pos < s.length && /[a-zA-Z0-9_]/.test(s[pos] ?? '')) {
+        id += s[pos++];
+      }
       if (s[pos] === '(') {
         pos++;
         const arg = parseExpression();
-        if (s[pos] !== ')') throw new Error(`missing closing parenthesis for ${name}`);
+        if (s[pos] !== ')') throw new Error('missing closing parenthesis');
         pos++;
-        switch (name) {
+        switch (id.toLowerCase()) {
           case 'sqrt': return Math.sqrt(arg);
           case 'abs': return Math.abs(arg);
           case 'round': return Math.round(arg);
@@ -100,21 +121,28 @@ export function evaluateMath(expr: string): number {
           case 'sin': return Math.sin(arg);
           case 'cos': return Math.cos(arg);
           case 'tan': return Math.tan(arg);
-          case 'log': return Math.log(arg);
-          default: throw new Error(`unknown function: ${name}`);
+          case 'log': return Math.log10(arg);
+          case 'ln': return Math.log(arg);
+          default: throw new Error(`unknown function: ${id}`);
+        }
+      } else {
+        switch (id.toLowerCase()) {
+          case 'pi': return Math.PI;
+          case 'e': return Math.E;
+          default: throw new Error(`unknown constant: ${id}`);
         }
       }
-      throw new Error(`unknown identifier: ${name}`);
     }
-    const numMatch = s.slice(pos).match(/^[0-9]+(?:\.[0-9]+)?/);
-    if (numMatch) {
-      pos += numMatch[0].length;
-      return parseFloat(numMatch[0]);
+
+    let numStr = '';
+    while (pos < s.length && (/[0-9]/.test(s[pos] ?? '') || s[pos] === '.')) {
+      numStr += s[pos++];
     }
-    throw new Error(`unexpected character at pos ${pos}: ${s[pos]}`);
+    if (numStr === '') throw new Error(`unexpected character at position ${pos}: "${s[pos]}"`);
+    const num = Number(numStr);
+    if (isNaN(num)) throw new Error(`invalid number: "${numStr}"`);
+    return num;
   }
 
-  const result = parseExpression();
-  if (pos < s.length) throw new Error(`unexpected extra characters: ${s.slice(pos)}`);
-  return result;
+  return parseExpression();
 }
