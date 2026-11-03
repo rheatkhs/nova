@@ -1,0 +1,14 @@
+services:
+  nova:
+    build: .
+    container_name: nova-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - HOST=0.0.0.0
+      - PORT=3000
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "3000:3000"

@@ -1,7 +1,10 @@
-# Minimal single-stage Bun container
+# Minimal single-stage Bun container with ffmpeg for audio streaming
 FROM oven/bun:1-alpine
 
 WORKDIR /app
+
+# Install system dependencies (ffmpeg for voice streaming)
+RUN apk add --no-cache ffmpeg
 
 # Cache dependencies
 COPY package.json bun.lock ./
