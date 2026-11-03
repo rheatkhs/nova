@@ -29,12 +29,18 @@ export function createBot(deps: BotDeps): Client {
     updatePresence(client, deps.stats);
     try {
       await c.application.commands.set(BOT_COMMANDS);
+      for (const guild of c.guilds.cache.values()) {
+        await guild.commands.set(BOT_COMMANDS).catch(() => {});
+      }
     } catch (err) {
       console.error('Failed to register slash commands:', err);
     }
   });
 
-  client.on(Events.GuildCreate, () => updatePresence(client, deps.stats));
+  client.on(Events.GuildCreate, (guild) => {
+    updatePresence(client, deps.stats);
+    void guild.commands.set(BOT_COMMANDS).catch(() => {});
+  });
   client.on(Events.GuildDelete, () => updatePresence(client, deps.stats));
   client.on(Events.MessageCreate, (msg) => void handleMessage(msg, deps, queue).catch(console.error));
   client.on(Events.InteractionCreate, (interaction) => void handleInteraction(interaction, deps).catch(console.error));
