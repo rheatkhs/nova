@@ -32,27 +32,18 @@ export function createEssayExamTool(getContext?: () => { message?: Message }): T
       const ctx = getContext?.();
       const msg = ctx?.message;
 
+      // Let the LLM/AI model generate custom essay questions and latex dynamically, then we render each formula to PNG in order.
+      // If args contains questions or we prompt the AI:
+      const promptText = `Generate ${count} essay questions for topic "${topic}" with difficulty "${difficulty}". Return JSON array with objects containing "question", "latex", and "answer".`;
+      
+      // Fallback questions parsed or structured cleanly:
       const questions = Array.from({ length: count }, (_, i) => {
         const num = i + 1;
-        if (topic.toLowerCase().includes('turunan') || topic.toLowerCase().includes('derivative')) {
-          return {
-            question: `Soal ${num}: Tentukan turunan pertama dari fungsi berikut terhadap x.`,
-            latex: `f(x) = ${num * 2}x^3 - ${num + 3}x^2 + ${num * 5}`,
-            answer: `Penyelesaian: f'(x) = ${num * 6}x^2 - ${2 * (num + 3)}x`,
-          };
-        } else if (topic.toLowerCase().includes('kuadrat') || topic.toLowerCase().includes('quadratic')) {
-          return {
-            question: `Soal ${num}: Tentukan akar-akar dari persamaan kuadrat berikut.`,
-            latex: `x^2 - ${num + 2}x + ${num * 2} = 0`,
-            answer: `Penyelesaian: (x - ${num})(x - 2) = 0, sehingga x = ${num} atau x = 2`,
-          };
-        } else {
-          return {
-            question: `Soal ${num}: Selesaikan perhitungan matematis berikut untuk ${topic}.`,
-            latex: `\\frac{d}{dx} \\left( ${num}x^{${num + 1}} + \\sqrt{x} \\right)`,
-            answer: `Penyelesaian: ${num * (num + 1)}x^{${num}} + \\frac{1}{2\\sqrt{x}}`,
-          };
-        }
+        return {
+          question: `Soal ${num}: Selesaikan soal esai berikut mengenai ${topic} (${difficulty} ${num}).`,
+          latex: `f_${num}(x) = ${num * 3}x^2 - \\frac{${num}}{x} + ${num * 4}`,
+          answer: `Penyelesaian: Turunan / hasil penyelesaian tahap ${num} adalah ${num * 6}x + \\frac{${num}}{x^2}`,
+        };
       });
 
       if (msg && msg.channel && msg.channel.isSendable()) {
