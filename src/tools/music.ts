@@ -47,7 +47,7 @@ export function createPlayMusicTool(getContext?: () => { message?: Message }): T
   return {
     name: 'play_music',
     description:
-      'Search for a song and queue/stream full-length tracks live into the user voice channel with queue management, skip, stop, and loop controls. Supports English and Indonesian.',
+      'Search for a song and queue/stream full-length tracks live into the user voice channel with professional queue management, skip, stop, and loop controls. Supports English and Indonesian.',
     parameters: {
       type: 'object',
       properties: {
@@ -72,6 +72,72 @@ export function createPlayMusicTool(getContext?: () => { message?: Message }): T
         const results = await YouTube.search(query, { limit: 1, type: 'video' });
         const topVideo = results[0];
         if (!topVideo || !topVideo.url) {
+          const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song&limit=1`;
+          const res = await fetch(itunesUrl, { signal: AbortSignal.timeout(10_000) });
+          if (res.ok) {
+            const data = (await res.json()) as {
+              results?: Array<{
+                trackName: string;
+                artistName: string;
+                collectionName: string;
+                previewUrl?: string;
+                artworkUrl100?: string;
+                trackTimeMillis?: number;
+              }>;
+            };
+            const track = data.results?.[0];
+            if (track) {
+              const durationSec = Math.round((track.trackTimeMillis ?? 0) / 1_000);
+              const mins = Math.floor(durationSec / 60);
+              const secs = durationSec % 60;
+              const durationStr = `${mins}:${secs.toString().padStart(2, '0')}`;
+              
+              const previewTrack: Track = {
+                title: `${track.trackName} - ${track.artistName}`,
+                durationFormatted: durationStr,
+                url: track.previewUrl || '',
+                thumbnail: track.artworkUrl100 ? track.artworkUrl100.replace('100x100bb', '400x400bb') : null,
+                requestedBy: msg.author.username,
+              };
+
+              let state = ACTIVE_PLAYERS.get(guild.id);
+              if (!state) {
+                state = {
+                  connection: null,
+                  player: createAudioPlayer(),
+                  queue: [],
+                  current: null,
+                  paused: false,
+                  loop: false,
+                };
+                ACTIVE_PLAYERS.set(guild.id, state);
+              }
+
+              const memberVoiceChannel = msg?.member?.voice?.channel;
+              const targetVoiceId = String(args.voiceChannelId || memberVoiceChannel?.id || '');
+
+              if (state.current) {
+                state.queue.push(previewTrack);
+                return [
+                  `🎵 **Added to Queue (Position #${state.queue.length})**`,
+                  `• **Title:** ${previewTrack.title}`,
+                  `• **Duration:** ${previewTrack.durationFormatted}`,
+                  previewTrack.thumbnail ? `• **Artwork:** ${previewTrack.thumbnail}` : '',
+                  `• **Requested By:** ${previewTrack.requestedBy}`,
+                ].filter(Boolean).join('\n');
+              } else {
+                state.current = previewTrack;
+                return [
+                  `🎶 **Now Playing (Fallback Preview)**`,
+                  `• **Title:** ${previewTrack.title}`,
+                  `• **Duration:** ${previewTrack.durationFormatted}`,
+                  previewTrack.thumbnail ? `• **Artwork:** ${previewTrack.thumbnail}` : '',
+                  previewTrack.url ? `• **Stream URL:** ${previewTrack.url}` : '',
+                  `• **Requested By:** ${previewTrack.requestedBy}`,
+                ].filter(Boolean).join('\n');
+              }
+            }
+          }
           return `No matching full-length tracks found for "${query}"`;
         }
 
@@ -96,27 +162,40 @@ export function createPlayMusicTool(getContext?: () => { message?: Message }): T
           ACTIVE_PLAYERS.set(guild.id, state);
         }
 
-        state.queue.push(newTrack);
-
         const memberVoiceChannel = msg?.member?.voice?.channel;
         const targetVoiceId = String(args.voiceChannelId || memberVoiceChannel?.id || '');
 
         if (!targetVoiceId) {
+          state.queue.push(newTrack);
           return `🎵 Added **${newTrack.title}** to the queue (Position #${state.queue.length}). *Join a voice channel to start streaming.*`;
         }
 
-        if (!state.current) {
-          await playNextInQueue(guild.id, targetVoiceId, guild);
+        // Professional Queue Logic:
+        // If a track is already currently playing or paused, push the new track into the queue.
+        // Otherwise, set it as current and play immediately.
+        if (state.current) {
+          state.queue.push(newTrack);
+          return [
+            `🎵 **Added to Queue (Position #${state.queue.length})**`,
+            `• **Title:** ${newTrack.title}`,
+            `• **Duration:** ${newTrack.durationFormatted}`,
+            newTrack.thumbnail ? `• **Artwork:** ${newTrack.thumbnail}` : '',
+            `• **YouTube URL:** ${newTrack.url}`,
+            `• **Requested By:** ${newTrack.requestedBy}`,
+          ].filter(Boolean).join('\n');
         }
 
-        const position = state.current ? state.queue.length : 1;
+        // Start playback immediately for the first track
+        state.current = newTrack;
+        await playNextInQueue(guild.id, targetVoiceId, guild, newTrack);
+
         const lines = [
-          `🎶 **${state.current && state.queue.length > 1 ? 'Added to Queue' : 'Now Playing'}**`,
+          `🎶 **Now Playing Full Track (FlaviBot Style)**`,
           `• **Title:** ${newTrack.title}`,
           `• **Duration:** ${newTrack.durationFormatted}`,
           newTrack.thumbnail ? `• **Artwork:** ${newTrack.thumbnail}` : '',
           `• **YouTube URL:** ${newTrack.url}`,
-          `• **Position in Queue:** #${position}`,
+          `• **Position in Queue:** #1 (Now Playing)`,
           `• **Requested By:** ${newTrack.requestedBy}`,
         ];
 
@@ -128,16 +207,16 @@ export function createPlayMusicTool(getContext?: () => { message?: Message }): T
   };
 }
 
-export async function playNextInQueue(guildId: string, voiceChannelId: string, guild: Guild): Promise<void> {
+export async function playNextInQueue(guildId: string, voiceChannelId: string, guild: Guild, explicitTrack?: Track): Promise<void> {
   const state = ACTIVE_PLAYERS.get(guildId);
-  if (!state || state.queue.length === 0) {
-    if (state) {
-      state.current = null;
-    }
+  if (!state) return;
+
+  const track = explicitTrack || state.queue.shift();
+  if (!track) {
+    state.current = null;
     return;
   }
 
-  const track = state.queue.shift()!;
   state.current = track;
 
   try {
@@ -166,17 +245,31 @@ export async function playNextInQueue(guildId: string, voiceChannelId: string, g
       if (state.loop && track) {
         state.queue.push(track);
       }
-      void playNextInQueue(guildId, voiceChannelId, guild);
+      const nextTrack = state.queue.shift();
+      if (nextTrack) {
+        void playNextInQueue(guildId, voiceChannelId, guild, nextTrack);
+      } else {
+        state.current = null;
+      }
     });
 
     state.player.removeAllListeners('error');
     state.player.on('error', (err: unknown) => {
       console.error('Audio player error:', err);
-      void playNextInQueue(guildId, voiceChannelId, guild);
+      const nextTrack = state.queue.shift();
+      if (nextTrack) {
+        void playNextInQueue(guildId, voiceChannelId, guild, nextTrack);
+      } else {
+        state.current = null;
+      }
     });
   } catch (err) {
     console.error('Failed to play track:', err);
-    void playNextInQueue(guildId, voiceChannelId, guild);
+    state.current = null;
+    const nextTrack = state.queue.shift();
+    if (nextTrack) {
+      void playNextInQueue(guildId, voiceChannelId, guild, nextTrack);
+    }
   }
 }
 
