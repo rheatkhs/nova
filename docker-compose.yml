@@ -2,7 +2,11 @@ services:
   nova:
     build:
       context: .
-      network: host
+      extra_hosts:
+        - "deb.debian.org:151.101.130.132"
+        - "deb.debian.org:151.101.66.132"
+        - "registry.npmjs.org:104.16.0.34"
+        - "registry.npmjs.org:104.16.1.34"
     container_name: nova-bot
     restart: unless-stopped
     dns:

@@ -3,14 +3,16 @@ FROM oven/bun:1-slim
 
 WORKDIR /app
 
-# Install ffmpeg and curl for healthcheck
-RUN apt-get update && \
+# Ensure working DNS resolution inside build container
+RUN (printf "nameserver 8.8.8.8\nnameserver 1.1.1.1\n" > /etc/resolv.conf || true) && \
+    apt-get update && \
     apt-get install -y --no-install-recommends ffmpeg curl ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
 # Cache dependencies
 COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile --production
+RUN (printf "nameserver 8.8.8.8\nnameserver 1.1.1.1\n" > /etc/resolv.conf || true) && \
+    bun install --frozen-lockfile --production
 
 # Application source
 COPY tsconfig.json ./
