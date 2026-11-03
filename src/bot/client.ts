@@ -18,6 +18,7 @@ export function createBot(deps: BotDeps): Client {
       GatewayIntentBits.GuildMessages,
       GatewayIntentBits.MessageContent,
       GatewayIntentBits.DirectMessages,
+      GatewayIntentBits.GuildVoiceStates,
     ],
     partials: [Partials.Channel],
   });
