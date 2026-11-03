@@ -10,7 +10,9 @@ import {
   type DiscordGatewayAdapterCreator,
 } from '@discordjs/voice';
 import { YouTube } from 'youtube-sr';
-import ytdl from 'ytdl-core';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const ytdl = require('@distube/ytdl-core');
 
 export interface PlayMusicArgs {
   query: string;
@@ -98,7 +100,7 @@ export function createPlayMusicTool(getContext?: () => { message?: Message }): T
 
               await entersState(connection, VoiceConnectionStatus.Ready, 20_000);
 
-              const stream = ytdl(videoUrl, {
+              const stream = ytdl.default(videoUrl, {
                 filter: 'audioonly',
                 quality: 'highestaudio',
                 highWaterMark: 1 << 25,
