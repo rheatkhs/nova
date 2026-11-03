@@ -181,3 +181,13 @@ test('optimize and vacuum execute without errors', () => {
   expect(mem.vacuum()).toBe(true);
   mem.close();
 });
+
+test('is247 and set247 toggle persistent voice mode per guild', () => {
+  const mem = new ConversationMemory(10, ':memory:');
+  expect(mem.is247('g1')).toBe(false);
+  mem.set247('g1', true);
+  expect(mem.is247('g1')).toBe(true);
+  mem.set247('g1', false);
+  expect(mem.is247('g1')).toBe(false);
+  mem.close();
+});

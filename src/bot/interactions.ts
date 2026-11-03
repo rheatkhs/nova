@@ -574,6 +574,30 @@ export async function handleInteraction(interaction: Interaction, deps: BotDeps)
     });
     return;
   }
+  if (interaction.commandName === '247') {
+    const mode = interaction.options.getString('mode', true);
+    const guildId = interaction.guildId;
+    if (!guildId) {
+      await interaction.reply({ content: 'This command can only be used inside servers.', flags: MessageFlags.Ephemeral });
+      return;
+    }
+    if (!hasManagePermission(interaction)) {
+      await interaction.reply({
+        content: 'You need "Manage Channels" or "Manage Server" permissions to configure 24/7 mode.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    const enable = mode === 'on';
+    deps.memory.set247(guildId, enable);
+    await interaction.reply({
+      content: enable
+        ? '🔄 **24/7 Persistent Voice Mode Enabled:** The bot will now stay in the voice channel even when idle.'
+        : '⏹️ **24/7 Persistent Voice Mode Disabled:** The bot will automatically leave voice channels when the queue finishes.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
   if (interaction.commandName === 'memory') {
     const action = interaction.options.getString('action', true);
     if (action === 'inspect') {
