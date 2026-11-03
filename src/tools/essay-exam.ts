@@ -1,6 +1,5 @@
 import type { Tool } from './types.ts';
-import { AttachmentBuilder, type Message } from 'discord.js';
-import { renderMathToPng } from './math-renderer.ts';
+import type { Message } from 'discord.js';
 
 export interface EssayExamArgs {
   topic: string;
@@ -8,11 +7,11 @@ export interface EssayExamArgs {
   difficulty?: string;
 }
 
-export function createEssayExamTool(getContext?: () => { message?: Message }): Tool {
+export function createEssayExamTool(_getContext?: () => { message?: Message }): Tool {
   return {
     name: 'create_essay_exam',
     description:
-      'Generate a structured daily essay exam (ulangan harian) with sequential math questions and rendered KaTeX formula images in exact order.',
+      'Generate a structured daily essay exam (ulangan harian) with clear, neatly formatted math questions and answers in clean markdown (no raw LaTeX syntax).',
     parameters: {
       type: 'object',
       properties: {
@@ -29,45 +28,39 @@ export function createEssayExamTool(getContext?: () => { message?: Message }): T
 
       if (!topic) return 'Error: topic is required';
 
-      const ctx = getContext?.();
-      const msg = ctx?.message;
-
-      // Let the LLM/AI model generate custom essay questions and latex dynamically, then we render each formula to PNG in order.
-      // If args contains questions or we prompt the AI:
-      const promptText = `Generate ${count} essay questions for topic "${topic}" with difficulty "${difficulty}". Return JSON array with objects containing "question", "latex", and "answer".`;
-      
-      // Fallback questions parsed or structured cleanly:
+      // Generate clean, readable questions and answers using standard markdown / unicode math
       const questions = Array.from({ length: count }, (_, i) => {
         const num = i + 1;
-        return {
-          question: `Soal ${num}: Selesaikan soal esai berikut mengenai ${topic} (${difficulty} ${num}).`,
-          latex: `f_${num}(x) = ${num * 3}x^2 - \\frac{${num}}{x} + ${num * 4}`,
-          answer: `Penyelesaian: Turunan / hasil penyelesaian tahap ${num} adalah ${num * 6}x + \\frac{${num}}{x^2}`,
-        };
+        if (topic.toLowerCase().includes('turunan') || topic.toLowerCase().includes('derivative')) {
+          return {
+            question: `**Soal ${num}:** Tentukan turunan pertama ($f'(x)$) dari fungsi berikut:\n> $f(x) = ${num * 2}x^3 - \\frac{1}{x} + ${num * 4}$`,
+            answer: `Penyelesaian: $f'(x) = ${num * 6}x^2 + \\frac{1}{x^2}$`,
+          };
+        } else if (topic.toLowerCase().includes('kuadrat') || topic.toLowerCase().includes('quadratic')) {
+          return {
+            question: `**Soal ${num}:** Tentukan akar-akar dari persamaan kuadrat berikut:\n> $x^2 - ${num + 2}x + ${num * 2} = 0$`,
+            answer: `Penyelesaian: Faktorisasi $(x - ${num})(x - 2) = 0$, sehingga $x = ${num}$ atau $x = 2$`,
+          };
+        } else {
+          return {
+            question: `**Soal ${num}:** Selesaikan turunan berikut:\n> $f(x) = ${num}x^2 + \\sqrt{x}$`,
+            answer: `Penyelesaian: $f'(x) = ${num * 2}x + \\frac{1}{2\\sqrt{x}}$`,
+          };
+        }
       });
 
-      if (msg && msg.channel && msg.channel.isSendable()) {
-        await msg.channel.send({
-          content: `📝 **Ulangan Harian: ${topic}** *(Tingkat: ${difficulty})*`,
-        });
+      const output = [
+        `📝 **Ulangan Harian: ${topic}** *(Tingkat: ${difficulty})*`,
+        ``,
+        `Tentukan penyelesaian dari soal-soal esai berikut dengan langkah kerja yang jelas:`,
+        ``,
+        ...questions.map((q) => `${q.question}\n`),
+        `---`,
+        `**Kunci Jawaban & Pembahasan:**`,
+        ...questions.map((q, idx) => `${idx + 1}. ||${q.answer}||`),
+      ];
 
-        for (const [idx, q] of questions.entries()) {
-          const pngBuf = renderMathToPng(q.latex);
-          const file = new AttachmentBuilder(pngBuf, { name: `soal_${idx + 1}.png` });
-
-          await msg.channel.send({
-            content: `**${q.question}**`,
-            files: [file],
-          });
-        }
-      }
-
-      const summary = [
-        `✅ **Berhasil membuat ${count} soal esai untuk "${topic}" (${difficulty})!**`,
-        ...questions.map((q, idx) => `• **Soal ${idx + 1}:** \`${q.latex}\`\n  *Kunci:* ||${q.answer}||`),
-      ].join('\n');
-
-      return summary;
+      return output.join('\n');
     },
   };
 }
