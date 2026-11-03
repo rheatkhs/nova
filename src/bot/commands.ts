@@ -123,6 +123,22 @@ export const BOT_COMMANDS: readonly ApplicationCommandDataResolvable[] = [
     ],
   },
   {
+    name: '247',
+    description: 'Enable or disable 24/7 persistent voice mode for this server (admins)',
+    options: [
+      {
+        name: 'mode',
+        description: 'Toggle 24/7 mode on or off',
+        type: 3, // ApplicationCommandOptionType.String
+        required: true,
+        choices: [
+          { name: 'On (Enable 24/7)', value: 'on' },
+          { name: 'Off (Disable 24/7)', value: 'off' },
+        ],
+      },
+    ],
+  },
+  {
     name: 'memory',
     description: 'Inspect or surgically prune SQLite conversation memory for this channel (admins)',
     options: [

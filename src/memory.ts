@@ -29,6 +29,8 @@ export class ConversationMemory {
   readonly #getVoiceStmt: Statement<{ voice: string }, [string]>;
   readonly #setVoiceStmt: Statement<void, [string, string, number]>;
   readonly #clearVoiceStmt: Statement<void, [string]>;
+  readonly #get247Stmt: Statement<{ enabled: number }, [string]>;
+  readonly #set247Stmt: Statement<void, [string, number, number]>;
   readonly #replaceAssistantStmt: Statement<void, [string, string]>;
   readonly #getDetailedStmt: Statement<{ id: number; role: string; content: string; created_at: number }, [string, number]>;
   readonly #deleteByIdStmt: Statement<void, [number]>;
@@ -74,6 +76,11 @@ export class ConversationMemory {
       CREATE TABLE IF NOT EXISTS channel_voices (
         channel_id TEXT PRIMARY KEY,
         voice TEXT NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS guild_247 (
+        guild_id TEXT PRIMARY KEY,
+        enabled INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       );
     `);
@@ -122,6 +129,11 @@ export class ConversationMemory {
       ON CONFLICT(channel_id) DO UPDATE SET voice = excluded.voice, updated_at = excluded.updated_at
     `);
     this.#clearVoiceStmt = this.#db.prepare('DELETE FROM channel_voices WHERE channel_id = ?');
+    this.#get247Stmt = this.#db.prepare('SELECT enabled FROM guild_247 WHERE guild_id = ?');
+    this.#set247Stmt = this.#db.prepare(`
+      INSERT INTO guild_247 (guild_id, enabled, updated_at) VALUES (?, ?, ?)
+      ON CONFLICT(guild_id) DO UPDATE SET enabled = excluded.enabled, updated_at = excluded.updated_at
+    `);
     this.#replaceAssistantStmt = this.#db.prepare(`
       UPDATE messages SET content = ? WHERE id = (
         SELECT id FROM messages WHERE channel_id = ? AND role = 'assistant' ORDER BY id DESC LIMIT 1
@@ -238,6 +250,15 @@ export class ConversationMemory {
 
   clearVoice(channelId: string): void {
     this.#clearVoiceStmt.run(channelId);
+  }
+
+  is247(guildId: string): boolean {
+    const row = this.#get247Stmt.get(guildId);
+    return row?.enabled === 1;
+  }
+
+  set247(guildId: string, enabled: boolean): void {
+    this.#set247Stmt.run(guildId, enabled ? 1 : 0, Date.now());
   }
   stats(): { totalMessages: number; channels: number } {
     const row = this.#db

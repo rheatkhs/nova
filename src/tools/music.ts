@@ -34,6 +34,10 @@ export interface GuildPlayerState {
   paused: boolean;
   loop: boolean;
 }
+let memoryInstance: import('../memory.ts').ConversationMemory | null = null;
+export function setMusicMemory(mem: import('../memory.ts').ConversationMemory) {
+  memoryInstance = mem;
+}
 
 export const ACTIVE_PLAYERS = new Map<string, GuildPlayerState>();
 
@@ -170,6 +174,13 @@ export async function playNextInQueue(guildId: string, voiceChannelId: string, g
   const track = explicitTrack || state.queue.shift();
   if (!track) {
     state.current = null;
+    const is247 = memoryInstance ? memoryInstance.is247(guildId) : false;
+    if (!is247 && state.connection) {
+      try {
+        state.connection.destroy();
+        ACTIVE_PLAYERS.delete(guildId);
+      } catch {}
+    }
     return;
   }
 
