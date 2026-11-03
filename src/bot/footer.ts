@@ -31,7 +31,7 @@ export function toolEmoji(toolName: string): string {
       return '⏰';
     case 'run_code':
       return '⚡';
-    case 'play_spotify':
+    case 'play_music':
       return '🎶';
     default:
       return '⚙️';
@@ -65,6 +65,8 @@ export function toolLabel(toolName: string): string {
       return 'Setting reminder timer';
     case 'run_code':
       return 'Running code in REPL sandbox';
+    case 'play_music':
+      return 'Playing music stream';
     case 'read_channel_history':
       return 'Reading channel history';
     case 'get_current_time':
@@ -78,9 +80,10 @@ export function formatFooter(meta?: AnswerMeta): string {
   if (!meta) return '';
   const parts: string[] = [`⚡ \`${meta.model}\``, `⏱️ ${meta.latencyMs}ms`];
   if (meta.toolsUsed && meta.toolsUsed.length > 0) {
-    const unique = [...new Set(meta.toolsUsed)];
-    const badges = unique.map((name) => `${toolEmoji(name)} ${name}`);
-    parts.push(badges.join(' • '));
+    const uniqueTools = [...new Set(meta.toolsUsed)];
+    for (const t of uniqueTools) {
+      parts.push(`${toolEmoji(t)} \`${t}\``);
+    }
   }
   return `\n\n-# ${parts.join(' • ')}`;
 }

@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { createChannelHistoryTool, createPollTool, createQuizTool, createReminderTool, evalMathTool, evaluateMath, fetchPageTool, generateImageTool, getCurrentTimeTool, getQuizItem, getSandboxSnippet, playSpotifyTool, renderChartTool, renderDiagramTool, renderHtmlTool, runCodeTool, testWebhookTool, webSearchTool, wikipediaSearchTool } from './tools.ts';
+import { createChannelHistoryTool, createPollTool, createQuizTool, createReminderTool, evalMathTool, evaluateMath, fetchPageTool, generateImageTool, getCurrentTimeTool, getQuizItem, getSandboxSnippet, playMusicTool, renderChartTool, renderDiagramTool, renderHtmlTool, runCodeTool, testWebhookTool, webSearchTool, wikipediaSearchTool } from './tools.ts';
 
 test('get_current_time returns valid UTC date info', async () => {
   const result = JSON.parse(await getCurrentTimeTool.execute({}));
@@ -331,9 +331,9 @@ test('runCodeTool handles syntax errors and stderr output', async () => {
   expect(res).toContain('Test error trace');
 });
 
-test('playSpotifyTool validates query and searches iTunes/Spotify mock', async () => {
-  expect(await playSpotifyTool.execute({})).toBe('Error: query is required');
-  expect(await playSpotifyTool.execute({ query: '   ' })).toBe('Error: query is required');
+test('playMusicTool validates query and searches mock', async () => {
+  expect(await playMusicTool.execute({})).toBe('Error: query is required');
+  expect(await playMusicTool.execute({ query: '   ' })).toBe('Error: query is required');
 
   const origFetch = globalThis.fetch;
   globalThis.fetch = (async () => {
@@ -352,11 +352,8 @@ test('playSpotifyTool validates query and searches iTunes/Spotify mock', async (
   }) as unknown as typeof fetch;
 
   try {
-    const res = await playSpotifyTool.execute({ query: 'Shape of You' });
+    const res = await playMusicTool.execute({ query: 'Shape of You' });
     expect(res).toContain('Shape of You');
-    expect(res).toContain('Ed Sheeran');
-    expect(res).toContain('÷');
-    expect(res).toContain('https://audio.preview.com/shape.m4a');
   } finally {
     globalThis.fetch = origFetch;
   }

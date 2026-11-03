@@ -12,16 +12,16 @@ import {
 import { YouTube } from 'youtube-sr';
 import ytdl from 'ytdl-core';
 
-export interface PlaySpotifyArgs {
+export interface PlayMusicArgs {
   query: string;
   channelId?: string;
   guildId?: string;
   voiceChannelId?: string;
 }
 
-export function createPlaySpotifyTool(getContext?: () => { message?: Message }): Tool {
+export function createPlayMusicTool(getContext?: () => { message?: Message }): Tool {
   return {
-    name: 'play_spotify',
+    name: 'play_music',
     description:
       'Search for a song and stream the FULL-LENGTH track live into the user voice channel like FlaviBot. Supports English and Indonesian (e.g. "putar lagu ...", "puterin ...", "play ...").',
     parameters: {
@@ -43,7 +43,6 @@ export function createPlaySpotifyTool(getContext?: () => { message?: Message }):
         const results = await YouTube.search(query, { limit: 1, type: 'video' });
         const topVideo = results[0];
         if (!topVideo || !topVideo.url) {
-          // Fallback to iTunes preview API if YouTube search returns nothing in test environment
           const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song&limit=1`;
           const res = await fetch(itunesUrl, { signal: AbortSignal.timeout(10_000) });
           if (res.ok) {
@@ -146,4 +145,4 @@ export function createPlaySpotifyTool(getContext?: () => { message?: Message }):
   };
 }
 
-export const playSpotifyTool = createPlaySpotifyTool();
+export const playMusicTool = createPlayMusicTool();

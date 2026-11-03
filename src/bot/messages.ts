@@ -9,7 +9,7 @@ import { NO_PINGS, TYPING_REFRESH_MS } from './types.ts';
 import type { TaskQueue } from '../queue.ts';
 import { buildActionRow, buildPageNavRow, buildQuizRow, savePageEntry, saveStepTrace } from './buttons.ts';
 import { formatFooter, toolEmoji, toolLabel } from './footer.ts';
-import { createChannelHistoryTool, createReminderTool, createPlaySpotifyTool } from '../tools/index.ts';
+import { createChannelHistoryTool, createReminderTool, createPlayMusicTool } from '../tools/index.ts';
 import { chunk } from '../chunk.ts';
 import { events } from '../events.ts';
 import type { ChatMessage, MessagePart } from '../ai.ts';
@@ -192,7 +192,7 @@ export async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueu
     };
     const channelTool = createChannelHistoryTool(channel);
     const reminderTool = createReminderTool(channel, msg.author.id);
-    const spotifyTool = createPlaySpotifyTool(() => ({ message: msg }));
+    const musicTool = createPlayMusicTool(() => ({ message: msg }));
     const channelPrompt = deps.memory.getPrompt(msg.channelId) ?? undefined;
     const channelModel = deps.memory.getModel(msg.channelId) ?? undefined;
     const channelTemperature = deps.memory.getTemperature(msg.channelId) ?? undefined;
@@ -209,7 +209,7 @@ export async function handleMessage(msg: Message, deps: BotDeps, queue: TaskQueu
           systemPrompt: channelPrompt,
           temperature: channelTemperature,
           language: channelLanguage,
-          extraTools: [channelTool, reminderTool, spotifyTool],
+          extraTools: [channelTool, reminderTool, musicTool],
           onToolStart: (tool, step) => {
             toolsUsed.push(tool);
             stepTraces.push(`**Step ${step}:** ${toolEmoji(tool)} **${tool}**\n*Action:* ${toolLabel(tool)}`);
