@@ -102,7 +102,7 @@ export function createPlayMusicTool(getContext?: () => { message?: Message }): T
               await entersState(connection, VoiceConnectionStatus.Ready, 20_000);
 
               const stream = ytdl.download(videoUrl, {
-                filter: 'audioonly',
+                filter: { hasAudio: true, hasVideo: false },
                 quality: 'highestaudio',
                 highWaterMark: 1 << 25,
               });
