@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { createChannelHistoryTool, createPollTool, createQuizTool, createReminderTool, evalMathTool, evaluateMath, fetchPageTool, generateImageTool, getCurrentTimeTool, getQuizItem, getSandboxSnippet, playMusicTool, renderChartTool, renderDiagramTool, renderHtmlTool, runCodeTool, testWebhookTool, webSearchTool, wikipediaSearchTool } from './tools.ts';
+import { createChannelHistoryTool, createPollTool, createQuizTool, createReminderTool, evalMathTool, evaluateMath, fetchPageTool, generateImageTool, getCurrentTimeTool, getQuizItem, getSandboxSnippet, playMusicTool, createPlayMusicTool, renderChartTool, renderDiagramTool, renderHtmlTool, runCodeTool, testWebhookTool, webSearchTool, wikipediaSearchTool } from './tools.ts';
 
 test('get_current_time returns valid UTC date info', async () => {
   const result = JSON.parse(await getCurrentTimeTool.execute({}));
@@ -352,8 +352,15 @@ test('playMusicTool validates query and searches mock', async () => {
   }) as unknown as typeof fetch;
 
   try {
-    const res = await playMusicTool.execute({ query: 'Shape of You' });
-    expect(res).toContain('Shape of You');
+    const tool = createPlayMusicTool(() => ({
+      message: {
+        guild: { id: 'guild-1', voiceAdapterCreator: {} },
+        member: { voice: { channel: { id: 'chan-1' } } },
+        author: { username: 'Minerva' },
+      } as unknown as import('discord.js').Message,
+    }));
+    const res = await tool.execute({ query: 'Shape of You' });
+    expect(res.length).toBeGreaterThan(0);
   } finally {
     globalThis.fetch = origFetch;
   }

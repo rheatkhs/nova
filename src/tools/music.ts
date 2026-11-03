@@ -1,5 +1,5 @@
 import type { Tool } from './types.ts';
-import type { Message } from 'discord.js';
+import type { Message, Guild } from 'discord.js';
 import {
   joinVoiceChannel,
   createAudioPlayer,
@@ -9,6 +9,7 @@ import {
   entersState,
   type DiscordGatewayAdapterCreator,
   type AudioPlayer,
+  type VoiceConnection,
 } from '@discordjs/voice';
 import { YouTube } from 'youtube-sr';
 import { createRequire } from 'node:module';
@@ -16,8 +17,24 @@ const require = createRequire(import.meta.url);
 const { Ytdl } = require('@distube/ytdl-core');
 const ytdl = new Ytdl();
 
-// Global active audio players store per guild ID for pause/resume control
-export const ACTIVE_PLAYERS = new Map<string, { player: AudioPlayer; paused: boolean }>();
+export interface Track {
+  title: string;
+  durationFormatted: string;
+  url: string;
+  thumbnail: string | null;
+  requestedBy: string;
+}
+
+export interface GuildPlayerState {
+  connection: VoiceConnection | null;
+  player: AudioPlayer;
+  queue: Track[];
+  current: Track | null;
+  paused: boolean;
+  loop: boolean;
+}
+
+export const ACTIVE_PLAYERS = new Map<string, GuildPlayerState>();
 
 export interface PlayMusicArgs {
   query: string;
@@ -30,7 +47,7 @@ export function createPlayMusicTool(getContext?: () => { message?: Message }): T
   return {
     name: 'play_music',
     description:
-      'Search for a song and stream the FULL-LENGTH track live into the user voice channel like FlaviBot. Supports English and Indonesian (e.g. "putar lagu ...", "puterin ...", "play ...").',
+      'Search for a song and queue/stream full-length tracks live into the user voice channel with queue management, skip, stop, and loop controls. Supports English and Indonesian.',
     parameters: {
       type: 'object',
       properties: {
@@ -45,114 +62,121 @@ export function createPlayMusicTool(getContext?: () => { message?: Message }): T
 
       const ctx = getContext?.();
       const msg = ctx?.message;
+      const guild = msg?.guild;
+
+      if (!guild) {
+        return 'Error: music playback is only supported inside servers.';
+      }
 
       try {
         const results = await YouTube.search(query, { limit: 1, type: 'video' });
         const topVideo = results[0];
         if (!topVideo || !topVideo.url) {
-          const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song&limit=1`;
-          const res = await fetch(itunesUrl, { signal: AbortSignal.timeout(10_000) });
-          if (res.ok) {
-            const data = (await res.json()) as {
-              results?: Array<{
-                trackName: string;
-                artistName: string;
-                collectionName: string;
-                previewUrl?: string;
-                artworkUrl100?: string;
-                trackTimeMillis?: number;
-              }>;
-            };
-            const track = data.results?.[0];
-            if (track) {
-              const durationSec = Math.round((track.trackTimeMillis ?? 0) / 1_000);
-              const mins = Math.floor(durationSec / 60);
-              const secs = durationSec % 60;
-              const durationStr = `${mins}:${secs.toString().padStart(2, '0')}`;
-              return [
-                `🎶 **Now Playing (Fallback Preview)**`,
-                `• **Title:** ${track.trackName}`,
-                `• **Artist:** ${track.artistName}`,
-                `• **Album:** ${track.collectionName}`,
-                `• **Duration:** ${durationStr}`,
-                track.artworkUrl100 ? `• **Artwork:** ${track.artworkUrl100.replace('100x100bb', '400x400bb')}` : '',
-                track.previewUrl ? `• **Audio Preview Stream:** ${track.previewUrl}` : '',
-              ].filter(Boolean).join('\n');
-            }
-          }
           return `No matching full-length tracks found for "${query}"`;
         }
 
-        const title = topVideo.title || query;
-        const durationFormatted = topVideo.durationFormatted || 'Full Track';
-        const videoUrl = topVideo.url;
-        const thumbnail = topVideo.thumbnail?.url || null;
+        const newTrack: Track = {
+          title: topVideo.title || query,
+          durationFormatted: topVideo.durationFormatted || 'Full Track',
+          url: topVideo.url,
+          thumbnail: topVideo.thumbnail?.url || null,
+          requestedBy: msg.author.username,
+        };
 
-        let voiceStatus = 'Voice channel not joined (search result only)';
-
-        const memberVoiceChannel = msg?.member?.voice?.channel;
-        const targetVoiceId = args.voiceChannelId || memberVoiceChannel?.id;
-        const guild = msg?.guild;
-
-        if (targetVoiceId && guild) {
-          void (async () => {
-            try {
-              const connection = joinVoiceChannel({
-                channelId: String(targetVoiceId),
-                guildId: String(guild.id),
-                adapterCreator: guild.voiceAdapterCreator as unknown as DiscordGatewayAdapterCreator,
-              });
-
-              await entersState(connection, VoiceConnectionStatus.Ready, 20_000);
-
-              const stream = ytdl.download(videoUrl, {
-                filter: { hasAudio: true, hasVideo: false },
-                quality: 'highestaudio',
-                highWaterMark: 1 << 25,
-              });
-
-              const player = createAudioPlayer();
-              const resource = createAudioResource(stream, { inlineVolume: true });
-              resource.volume?.setVolume(1.0);
-              player.play(resource);
-              connection.subscribe(player);
-
-              ACTIVE_PLAYERS.set(guild.id, { player, paused: false });
-
-              player.on('error', (error) => {
-                console.error('Audio player error:', error);
-              });
-              player.on(AudioPlayerStatus.Idle, () => {
-                ACTIVE_PLAYERS.delete(guild.id);
-                try {
-                  connection.destroy();
-                } catch {}
-              });
-            } catch (err) {
-              console.error('Background full-track voice stream error:', err);
-            }
-          })();
-
-          voiceStatus = `🔊 Connected to voice channel & streaming FULL TRACK live!`;
-        } else {
-          voiceStatus = `🔗 Stream ready (join voice channel to auto-stream full track).`;
+        let state = ACTIVE_PLAYERS.get(guild.id);
+        if (!state) {
+          state = {
+            connection: null,
+            player: createAudioPlayer(),
+            queue: [],
+            current: null,
+            paused: false,
+            loop: false,
+          };
+          ACTIVE_PLAYERS.set(guild.id, state);
         }
 
+        state.queue.push(newTrack);
+
+        const memberVoiceChannel = msg?.member?.voice?.channel;
+        const targetVoiceId = String(args.voiceChannelId || memberVoiceChannel?.id || '');
+
+        if (!targetVoiceId) {
+          return `🎵 Added **${newTrack.title}** to the queue (Position #${state.queue.length}). *Join a voice channel to start streaming.*`;
+        }
+
+        if (!state.current) {
+          await playNextInQueue(guild.id, targetVoiceId, guild);
+        }
+
+        const position = state.current ? state.queue.length : 1;
         const lines = [
-          `🎶 **Now Playing Full Track (FlaviBot Style)**`,
-          `• **Title:** ${title}`,
-          `• **Duration:** ${durationFormatted}`,
-          thumbnail ? `• **Artwork:** ${thumbnail}` : '',
-          `• **YouTube URL:** ${videoUrl}`,
-          `• **Voice Status:** ${voiceStatus}`,
+          `🎶 **${state.current && state.queue.length > 1 ? 'Added to Queue' : 'Now Playing'}**`,
+          `• **Title:** ${newTrack.title}`,
+          `• **Duration:** ${newTrack.durationFormatted}`,
+          newTrack.thumbnail ? `• **Artwork:** ${newTrack.thumbnail}` : '',
+          `• **Position in Queue:** #${position}`,
+          `• **Requested By:** ${newTrack.requestedBy}`,
         ];
 
         return lines.filter(Boolean).join('\n');
       } catch (err) {
-        return `Full-track music playback failed: ${err instanceof Error ? err.message : String(err)}`;
+        return `Music playback failed: ${err instanceof Error ? err.message : String(err)}`;
       }
     },
   };
+}
+
+export async function playNextInQueue(guildId: string, voiceChannelId: string, guild: Guild): Promise<void> {
+  const state = ACTIVE_PLAYERS.get(guildId);
+  if (!state || state.queue.length === 0) {
+    if (state) {
+      state.current = null;
+    }
+    return;
+  }
+
+  const track = state.queue.shift()!;
+  state.current = track;
+
+  try {
+    if (!state.connection || state.connection.state.status === VoiceConnectionStatus.Destroyed) {
+      state.connection = joinVoiceChannel({
+        channelId: String(voiceChannelId),
+        guildId: String(guildId),
+        adapterCreator: guild.voiceAdapterCreator as unknown as DiscordGatewayAdapterCreator,
+      });
+      await entersState(state.connection, VoiceConnectionStatus.Ready, 20_000);
+    }
+
+    const stream = ytdl.download(track.url, {
+      filter: { hasAudio: true, hasVideo: false },
+      quality: 'highestaudio',
+      highWaterMark: 1 << 25,
+    });
+
+    const resource = createAudioResource(stream, { inlineVolume: true });
+    resource.volume?.setVolume(1.0);
+    state.player.play(resource);
+    state.connection.subscribe(state.player);
+
+    state.player.removeAllListeners(AudioPlayerStatus.Idle);
+    state.player.on(AudioPlayerStatus.Idle, () => {
+      if (state.loop && track) {
+        state.queue.push(track);
+      }
+      void playNextInQueue(guildId, voiceChannelId, guild);
+    });
+
+    state.player.removeAllListeners('error');
+    state.player.on('error', (err: unknown) => {
+      console.error('Audio player error:', err);
+      void playNextInQueue(guildId, voiceChannelId, guild);
+    });
+  } catch (err) {
+    console.error('Failed to play track:', err);
+    void playNextInQueue(guildId, voiceChannelId, guild);
+  }
 }
 
 export const playMusicTool = createPlayMusicTool();
