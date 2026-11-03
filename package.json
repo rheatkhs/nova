@@ -16,7 +16,6 @@
     "@discordjs/voice": "^0.19.2",
     "@distube/ytdl-core": "^5.2.0",
     "@types/sodium-native": "^2.3.9",
-    "canvas": "^3.2.3",
     "discord.js": "^14.28.0",
     "elysia": "^1.4.30",
     "katex": "^0.19.1",
