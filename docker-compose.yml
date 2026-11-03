@@ -1,8 +1,13 @@
 services:
   nova:
-    build: .
+    build:
+      context: .
+      network: host
     container_name: nova-bot
     restart: unless-stopped
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     env_file:
       - .env
     environment:
