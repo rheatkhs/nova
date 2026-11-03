@@ -279,12 +279,10 @@ export async function handleButton(interaction: ButtonInteraction, deps: BotDeps
       return;
     }
 
+    await interaction.deferUpdate().catch(() => {});
     const priorContext =
       history.at(-1)?.role === 'assistant' ? history.slice(0, -1) : history;
     if (priorContext.length === 0) return;
-
-    await interaction.deferUpdate();
-
     const channelPrompt = deps.memory.getPrompt(interaction.channelId) ?? undefined;
     const channelModel = deps.memory.getModel(interaction.channelId) ?? undefined;
     const channelTemperature = deps.memory.getTemperature(interaction.channelId) ?? undefined;
