@@ -17,7 +17,7 @@ test('evalMathTool evaluates arithmetic with precedence and parentheses', async 
 });
 
 test('evalMathTool handles errors safely', async () => {
-  expect(await evalMathTool.execute({})).toBe('Error: expression is required');
+  expect(await evalMathTool.execute({})).toBe('Error: expression or latex is required');
   expect(await evalMathTool.execute({ expression: '10 / 0' })).toBe('Math error: division by zero');
   expect(await evalMathTool.execute({ expression: 'alert(1)' })).toBe('Math error: unknown function: alert');
   expect(await evalMathTool.execute({ expression: '2 + (3 * 4' })).toBe('Math error: missing closing parenthesis');
