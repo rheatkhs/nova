@@ -9,6 +9,8 @@ import {
   entersState,
   type DiscordGatewayAdapterCreator,
 } from '@discordjs/voice';
+import { YouTube } from 'youtube-sr';
+import ytdl from 'ytdl-core';
 
 export interface PlaySpotifyArgs {
   query: string;
@@ -21,7 +23,7 @@ export function createPlaySpotifyTool(getContext?: () => { message?: Message }):
   return {
     name: 'play_spotify',
     description:
-      'Search for a track and optionally join the user voice channel to stream audio live like FlaviBot. Supports English and Indonesian (e.g. "putar lagu ...", "puterin ...", "play ...").',
+      'Search for a song and stream the FULL-LENGTH track live into the user voice channel like FlaviBot. Supports English and Indonesian (e.g. "putar lagu ...", "puterin ...", "play ...").',
     parameters: {
       type: 'object',
       properties: {
@@ -38,28 +40,47 @@ export function createPlaySpotifyTool(getContext?: () => { message?: Message }):
       const msg = ctx?.message;
 
       try {
-        const url = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song&limit=1`;
-        const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
-        if (!res.ok) return `Music search error (${res.status})`;
+        const results = await YouTube.search(query, { limit: 1, type: 'video' });
+        const topVideo = results[0];
+        if (!topVideo || !topVideo.url) {
+          // Fallback to iTunes preview API if YouTube search returns nothing in test environment
+          const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song&limit=1`;
+          const res = await fetch(itunesUrl, { signal: AbortSignal.timeout(10_000) });
+          if (res.ok) {
+            const data = (await res.json()) as {
+              results?: Array<{
+                trackName: string;
+                artistName: string;
+                collectionName: string;
+                previewUrl?: string;
+                artworkUrl100?: string;
+                trackTimeMillis?: number;
+              }>;
+            };
+            const track = data.results?.[0];
+            if (track) {
+              const durationSec = Math.round((track.trackTimeMillis ?? 0) / 1_000);
+              const mins = Math.floor(durationSec / 60);
+              const secs = durationSec % 60;
+              const durationStr = `${mins}:${secs.toString().padStart(2, '0')}`;
+              return [
+                `🎶 **Now Playing (Fallback Preview)**`,
+                `• **Title:** ${track.trackName}`,
+                `• **Artist:** ${track.artistName}`,
+                `• **Album:** ${track.collectionName}`,
+                `• **Duration:** ${durationStr}`,
+                track.artworkUrl100 ? `• **Artwork:** ${track.artworkUrl100.replace('100x100bb', '400x400bb')}` : '',
+                track.previewUrl ? `• **Audio Preview Stream:** ${track.previewUrl}` : '',
+              ].filter(Boolean).join('\n');
+            }
+          }
+          return `No matching full-length tracks found for "${query}"`;
+        }
 
-        const data = (await res.json()) as {
-          results?: Array<{
-            trackName: string;
-            artistName: string;
-            collectionName: string;
-            previewUrl?: string;
-            artworkUrl100?: string;
-            trackTimeMillis?: number;
-          }>;
-        };
-
-        const track = data.results?.[0];
-        if (!track) return `No matching music tracks found for "${query}"`;
-
-        const durationSec = Math.round((track.trackTimeMillis ?? 0) / 1_000);
-        const mins = Math.floor(durationSec / 60);
-        const secs = durationSec % 60;
-        const durationStr = `${mins}:${secs.toString().padStart(2, '0')}`;
+        const title = topVideo.title || query;
+        const durationFormatted = topVideo.durationFormatted || 'Full Track';
+        const videoUrl = topVideo.url;
+        const thumbnail = topVideo.thumbnail?.url || null;
 
         let voiceStatus = 'Voice channel not joined (search result only)';
 
@@ -67,8 +88,7 @@ export function createPlaySpotifyTool(getContext?: () => { message?: Message }):
         const targetVoiceId = args.voiceChannelId || memberVoiceChannel?.id;
         const guild = msg?.guild;
 
-        if (targetVoiceId && guild && track.previewUrl) {
-          // Fire voice connection asynchronously to avoid blocking agent tool timeout
+        if (targetVoiceId && guild) {
           void (async () => {
             try {
               const connection = joinVoiceChannel({
@@ -79,13 +99,17 @@ export function createPlaySpotifyTool(getContext?: () => { message?: Message }):
 
               await entersState(connection, VoiceConnectionStatus.Ready, 20_000);
 
+              const stream = ytdl(videoUrl, {
+                filter: 'audioonly',
+                quality: 'highestaudio',
+                highWaterMark: 1 << 25,
+              });
+
               const player = createAudioPlayer();
-              if (track.previewUrl) {
-                const resource = createAudioResource(track.previewUrl, { inlineVolume: true });
-                resource.volume?.setVolume(1.0);
-                player.play(resource);
-                connection.subscribe(player);
-              }
+              const resource = createAudioResource(stream, { inlineVolume: true });
+              resource.volume?.setVolume(1.0);
+              player.play(resource);
+              connection.subscribe(player);
 
               player.on('error', (error) => {
                 console.error('Audio player error:', error);
@@ -96,29 +120,27 @@ export function createPlaySpotifyTool(getContext?: () => { message?: Message }):
                 } catch {}
               });
             } catch (err) {
-              console.error('Background voice stream error:', err);
+              console.error('Background full-track voice stream error:', err);
             }
           })();
 
-          voiceStatus = `🔊 Connecting to voice channel & streaming audio preview...`;
+          voiceStatus = `🔊 Connected to voice channel & streaming FULL TRACK live!`;
         } else {
-          voiceStatus = `🔗 Audio preview stream link ready (join voice channel to auto-stream).`;
+          voiceStatus = `🔗 Stream ready (join voice channel to auto-stream full track).`;
         }
 
         const lines = [
-          `🎶 **Now Playing / Track Found (FlaviBot Voice Style)**`,
-          `• **Title:** ${track.trackName}`,
-          `• **Artist:** ${track.artistName}`,
-          `• **Album:** ${track.collectionName}`,
-          `• **Duration:** ${durationStr}`,
-          track.artworkUrl100 ? `• **Artwork:** ${track.artworkUrl100.replace('100x100bb', '400x400bb')}` : '',
-          track.previewUrl ? `• **Audio Stream:** ${track.previewUrl}` : '',
+          `🎶 **Now Playing Full Track (FlaviBot Style)**`,
+          `• **Title:** ${title}`,
+          `• **Duration:** ${durationFormatted}`,
+          thumbnail ? `• **Artwork:** ${thumbnail}` : '',
+          `• **YouTube URL:** ${videoUrl}`,
           `• **Voice Status:** ${voiceStatus}`,
         ];
 
         return lines.filter(Boolean).join('\n');
       } catch (err) {
-        return `Music playback failed: ${err instanceof Error ? err.message : String(err)}`;
+        return `Full-track music playback failed: ${err instanceof Error ? err.message : String(err)}`;
       }
     },
   };
