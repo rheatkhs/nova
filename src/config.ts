@@ -8,7 +8,12 @@ export interface Config {
   historyCharLimit: number;
   memoryPath: string;
   userCooldownMs: number;
-  http: { hostname: string; port: number };
+  http: {
+    hostname: string;
+    port: number;
+    user?: string;
+    pass?: string;
+  };
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -29,6 +34,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     http: {
       hostname: env.HOST || '127.0.0.1',
       port: nonNegativeInt(env, 'PORT', 3000),
+      user: env.DASHBOARD_USER?.trim() || undefined,
+      pass: env.DASHBOARD_PASS?.trim() || undefined,
     },
   };
 }
