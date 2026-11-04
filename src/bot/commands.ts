@@ -123,6 +123,24 @@ export const BOT_COMMANDS: readonly ApplicationCommandDataResolvable[] = [
     ],
   },
   {
+    name: 'remind',
+    description: 'Schedule a timed reminder ping in this channel',
+    options: [
+      {
+        name: 'duration',
+        description: 'Time duration, e.g. "30s", "10m", or "2h"',
+        type: 3, // ApplicationCommandOptionType.String
+        required: true,
+      },
+      {
+        name: 'message',
+        description: 'What do you want to be reminded about?',
+        type: 3, // ApplicationCommandOptionType.String
+        required: true,
+      },
+    ],
+  },
+  {
     name: '247',
     description: 'Enable or disable 24/7 persistent voice mode for this server (admins)',
     options: [

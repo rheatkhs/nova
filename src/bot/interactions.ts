@@ -574,6 +574,53 @@ export async function handleInteraction(interaction: Interaction, deps: BotDeps)
     });
     return;
   }
+  if (interaction.commandName === 'remind') {
+    const durationStr = interaction.options.getString('duration', true).trim();
+    const message = interaction.options.getString('message', true).trim();
+    const channel = interaction.channel;
+
+    if (!channel || !channel.isSendable()) {
+      await interaction.reply({ content: 'This channel does not support sending reminders.', flags: MessageFlags.Ephemeral });
+      return;
+    }
+
+    const match = durationStr.match(/^(\d+)([smhd])$/i);
+    if (!match) {
+      await interaction.reply({
+        content: 'Invalid duration format. Use numbers followed by unit (s = seconds, m = minutes, h = hours, d = days), e.g. `10m`, `2h`.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    const [, numStr, unit] = match;
+    const val = parseInt(numStr || '0', 10);
+    let seconds = val;
+    const u = (unit || 's').toLowerCase();
+    if (u === 'm') seconds = val * 60;
+    else if (u === 'h') seconds = val * 3600;
+    else if (u === 'd') seconds = val * 86400;
+
+    if (seconds < 5 || seconds > 86400) {
+      await interaction.reply({
+        content: 'Reminder duration must be between 5 seconds and 24 hours.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    setTimeout(() => {
+      channel.send({
+        content: `⏰ <@${interaction.user.id}> **Reminder:** ${message}`,
+      }).catch(() => {});
+    }, seconds * 1_000);
+
+    await interaction.reply({
+      content: `✅ Reminder scheduled for **${durationStr}** from now: "${message}". I will ping you here when the time is up!`,
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
   if (interaction.commandName === '247') {
     const mode = interaction.options.getString('mode', true);
     const guildId = interaction.guildId;
