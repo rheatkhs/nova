@@ -10,7 +10,7 @@ import { BOT_COMMANDS } from './commands.ts';
 import { updatePresence } from './presence.ts';
 import { handleInteraction } from './interactions.ts';
 import { handleMessage } from './messages.ts';
-
+import { setupModeration } from './moderation.ts';
 export function createBot(deps: BotDeps): Client {
   const client = new Client({
     intents: [
@@ -23,7 +23,7 @@ export function createBot(deps: BotDeps): Client {
     partials: [Partials.Channel],
   });
   const queue = createQueue();
-
+  setupModeration(client);
   client.once(Events.ClientReady, async (c) => {
     console.log(`Logged in as ${c.user.tag}`);
     updatePresence(client, deps.stats);
