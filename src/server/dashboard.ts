@@ -22,6 +22,7 @@ export function renderDashboard(data: DashboardData): string {
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
   <style>
     :root {
       --background: #09090b;
@@ -60,11 +61,12 @@ export function renderDashboard(data: DashboardData): string {
       .sidebar { display: flex; }
     }
     .logo-area { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 2.5rem; }
-    .logo-icon { width: 32px; height: 32px; background: linear-gradient(135deg, #6366f1, #a855f7); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: bold; color: white; }
+    .logo-icon { width: 34px; height: 34px; background: linear-gradient(135deg, #6366f1, #a855f7); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; box-shadow: 0 0 15px rgba(99, 102, 241, 0.4); }
     .logo-text { font-size: 1.125rem; font-weight: 700; letter-spacing: -0.025em; }
     .nav-links { display: flex; flex-direction: column; gap: 0.5rem; }
     .nav-link { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; border-radius: 0.5rem; color: var(--muted); text-decoration: none; font-size: 0.875rem; font-weight: 500; transition: all 0.2s; }
     .nav-link:hover, .nav-link.active { background: rgba(255, 255, 255, 0.05); color: var(--foreground); }
+    .nav-link svg { width: 18px; height: 18px; }
     
     .main-content {
       flex: 1;
@@ -85,7 +87,7 @@ export function renderDashboard(data: DashboardData): string {
       top: 0;
       z-index: 10;
     }
-    .header-title { font-size: 1.25rem; font-weight: 600; letter-spacing: -0.025em; }
+    .header-title { font-size: 1.25rem; font-weight: 600; letter-spacing: -0.025em; display: flex; align-items: center; gap: 0.5rem; }
     .status-badge {
       display: inline-flex;
       align-items: center;
@@ -130,6 +132,7 @@ export function renderDashboard(data: DashboardData): string {
       box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     }
     .metric-header { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 0.875rem; font-weight: 500; }
+    .metric-header svg { width: 18px; height: 18px; color: var(--primary); }
     .metric-value { font-size: 2rem; font-weight: 700; letter-spacing: -0.025em; font-family: 'JetBrains Mono', monospace; }
     .metric-sub { font-size: 0.75rem; color: var(--muted-foreground); display: flex; align-items: center; gap: 0.35rem; }
     
@@ -150,7 +153,8 @@ export function renderDashboard(data: DashboardData): string {
       flex-direction: column;
       gap: 1rem;
     }
-    .panel-title { font-size: 1rem; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+    .panel-title { font-size: 1rem; font-weight: 600; display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+    .panel-title svg { width: 18px; height: 18px; color: var(--muted); }
     
     .terminal {
       font-family: 'JetBrains Mono', monospace;
@@ -186,33 +190,38 @@ export function renderDashboard(data: DashboardData): string {
       margin-top: auto;
     }
     .footer-links { display: flex; gap: 1.5rem; }
-    .footer-links a { color: var(--muted); text-decoration: none; transition: color 0.2s; }
+    .footer-links a { color: var(--muted); text-decoration: none; transition: color 0.2s; display: flex; align-items: center; gap: 0.4rem; }
     .footer-links a:hover { color: var(--foreground); }
+    .footer-links svg { width: 16px; height: 16px; }
   </style>
 </head>
 <body>
   <div class="sidebar">
     <div>
       <div class="logo-area">
-        <div class="logo-icon">N</div>
+        <div class="logo-icon">
+          <i data-lucide="bot"></i>
+        </div>
         <div class="logo-text">Nova AI</div>
       </div>
       <div class="nav-links">
-        <a href="/" class="nav-link active">📊 AI Analytics</a>
-        <a href="/tester" class="nav-link">⚡ API Tester</a>
-        <a href="/events" class="nav-link">📡 SSE Stream</a>
-        <a href="/stats" class="nav-link">📈 Raw Stats</a>
-        <a href="/health" class="nav-link">🩺 Health Check</a>
+        <a href="/" class="nav-link active"><i data-lucide="layout-dashboard"></i> AI Analytics</a>
+        <a href="/tester" class="nav-link"><i data-lucide="zap"></i> API Tester</a>
+        <a href="/events" class="nav-link"><i data-lucide="radio"></i> SSE Stream</a>
+        <a href="/stats" class="nav-link"><i data-lucide="bar-chart-3"></i> Raw Stats</a>
+        <a href="/health" class="nav-link"><i data-lucide="heart-pulse"></i> Health Check</a>
       </div>
     </div>
-    <div style="font-size: 0.75rem; color: var(--muted-foreground); padding-top: 1rem; border-top: 1px solid var(--border);">
-      v1.0.0 • Production
+    <div style="font-size: 0.75rem; color: var(--muted-foreground); padding-top: 1rem; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 0.5rem;">
+      <i data-lucide="shield-check" style="width: 14px; height: 14px; color: var(--success);"></i> Secure Auth Enabled
     </div>
   </div>
 
   <div class="main-content">
     <header>
-      <div class="header-title">Nova AI Analytics</div>
+      <div class="header-title">
+        <i data-lucide="activity" style="color: var(--primary);"></i> Nova AI Analytics
+      </div>
       <div class="status-badge ${data.ready ? '' : 'offline'}">
         <span class="dot"></span>
         <span>${data.ready ? 'ONLINE' : 'OFFLINE'}</span>
@@ -224,7 +233,7 @@ export function renderDashboard(data: DashboardData): string {
         <div class="metric-card">
           <div class="metric-header">
             <span>Questions Answered</span>
-            <span>💬</span>
+            <i data-lucide="message-square"></i>
           </div>
           <div class="metric-value" id="answered">${data.answered}</div>
           <div class="metric-sub"><span>Failed requests:</span> <strong id="failed" style="color:var(--destructive);">${data.failed}</strong></div>
@@ -233,7 +242,7 @@ export function renderDashboard(data: DashboardData): string {
         <div class="metric-card">
           <div class="metric-header">
             <span>Tool Executions</span>
-            <span>⚡</span>
+            <i data-lucide="cpu"></i>
           </div>
           <div class="metric-value" id="toolCalls">${data.toolCalls}</div>
           <div class="metric-sub"><span>Multi-step AI agent loops</span></div>
@@ -242,7 +251,7 @@ export function renderDashboard(data: DashboardData): string {
         <div class="metric-card">
           <div class="metric-header">
             <span>Round-Trip Latency</span>
-            <span>⏱️</span>
+            <i data-lucide="timer"></i>
           </div>
           <div class="metric-value" id="latency">${data.lastResponseMs}ms</div>
           <div class="metric-sub"><span>LLM inference & response</span></div>
@@ -251,7 +260,7 @@ export function renderDashboard(data: DashboardData): string {
         <div class="metric-card">
           <div class="metric-header">
             <span>Discord Gateway</span>
-            <span>🤖</span>
+            <i data-lucide="radio"></i>
           </div>
           <div class="metric-value" id="ping">${data.pingMs}ms</div>
           <div class="metric-sub"><span>Connected to <strong>${data.guilds}</strong> guild(s)</span></div>
@@ -261,7 +270,7 @@ export function renderDashboard(data: DashboardData): string {
       <div class="panel-grid">
         <div class="panel">
           <div class="panel-title">
-            <span>Real-Time Event Stream (SSE)</span>
+            <span style="display:flex;align-items:center;gap:0.5rem;"><i data-lucide="terminal"></i> Real-Time Event Stream (SSE)</span>
             <span style="font-size: 0.75rem; color: var(--success); font-weight: 500;">● STREAM ACTIVE</span>
           </div>
           <div class="terminal" id="terminal">
@@ -270,7 +279,9 @@ export function renderDashboard(data: DashboardData): string {
         </div>
 
         <div class="panel">
-          <div class="panel-title">System Information</div>
+          <div class="panel-title">
+            <i data-lucide="server"></i> System Information
+          </div>
           <div class="system-info-list">
             <div class="info-row">
               <span class="info-label">Active Model</span>
@@ -298,17 +309,21 @@ export function renderDashboard(data: DashboardData): string {
     </div>
 
     <footer>
-      <div>Nova AI Analytics Dashboard • Powered by Elysia & Bun</div>
+      <div style="display:flex;align-items:center;gap:0.5rem;">
+        <i data-lucide="shield" style="width:16px;height:16px;color:var(--primary);"></i> Nova AI Analytics Dashboard • Powered by Elysia & Bun
+      </div>
       <div class="footer-links">
-        <a href="/tester">API Tester</a>
-        <a href="/events">SSE Stream</a>
-        <a href="/stats">JSON Stats</a>
-        <a href="https://github.com/rheatkhs/nova" target="_blank" rel="noopener">GitHub</a>
+        <a href="/tester"><i data-lucide="zap"></i> API Tester</a>
+        <a href="/events"><i data-lucide="radio"></i> SSE Stream</a>
+        <a href="/stats"><i data-lucide="database"></i> JSON Stats</a>
+        <a href="https://github.com/rheatkhs/nova" target="_blank" rel="noopener"><i data-lucide="github"></i> GitHub</a>
       </div>
     </footer>
   </div>
 
   <script>
+    lucide.createIcons();
+
     setInterval(async () => {
       try {
         const res = await fetch('/stats');
