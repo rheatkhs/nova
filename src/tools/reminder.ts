@@ -5,7 +5,7 @@ export function createReminderTool(channel: unknown, authorId: string): Tool {
   return {
     name: 'create_reminder',
     description:
-      'Schedule a reminder note to be sent back to this Discord channel after a specified number of seconds or minutes.',
+      'Schedule a reminder note when asked in natural language (e.g. "ingetin gue ... 10 menit lagi", "remind me in 30 minutes to ...").',
     parameters: {
       type: 'object',
       properties: {
