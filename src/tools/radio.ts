@@ -6,10 +6,10 @@ import {
   createAudioResource,
   VoiceConnectionStatus,
   entersState,
-  StreamType,
   type DiscordGatewayAdapterCreator,
 } from '@discordjs/voice';
 import { ACTIVE_PLAYERS } from './music.ts';
+import { Readable } from 'node:stream';
 
 const RADIO_PRESETS: Record<string, { name: string; url: string }> = {
   lofi: { name: 'Lofi Hip Hop Radio', url: 'https://iloradio.org/stream' },
@@ -44,7 +44,6 @@ export function createPlayRadioTool(getContext?: () => { message?: Message }): T
       let stationName = 'Live Radio';
 
       try {
-        // If input is a Radio Garden URL (e.g. https://radio.garden/listen/.../sMt85ocC)
         if (directUrl.includes('radio.garden')) {
           const parts = directUrl.split('/');
           const channelId = parts[parts.length - 1] || parts[parts.length - 2];
@@ -92,6 +91,17 @@ export function createPlayRadioTool(getContext?: () => { message?: Message }): T
           return `🎵 Selected radio station: **${stationName}**. *Join a voice channel to start live streaming.*`;
         }
 
+        // Fetch live stream body as a Node readable stream
+        const streamRes = await fetch(streamUrl, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) NovaBot/1.0' },
+          signal: AbortSignal.timeout(15_000),
+        });
+        if (!streamRes.ok || !streamRes.body) {
+          return `Failed to connect to radio stream (HTTP ${streamRes.status})`;
+        }
+
+        const nodeStream = Readable.fromWeb(streamRes.body as unknown as import('stream/web').ReadableStream);
+
         let state = ACTIVE_PLAYERS.get(guild.id);
         if (!state) {
           state = {
@@ -120,13 +130,11 @@ export function createPlayRadioTool(getContext?: () => { message?: Message }): T
         await entersState(connection, VoiceConnectionStatus.Ready, 20_000);
         state.connection = connection;
 
-        const resource = createAudioResource(streamUrl, {
-          inlineVolume: true,
-          inputType: StreamType.Arbitrary,
-        });
+        const resource = createAudioResource(nodeStream, { inlineVolume: true });
         resource.volume?.setVolume(1.0);
         state.player.play(resource);
         connection.subscribe(state.player);
+
         state.current = {
           title: stationName,
           durationFormatted: 'Live 24/7',
@@ -141,7 +149,7 @@ export function createPlayRadioTool(getContext?: () => { message?: Message }): T
         });
 
         return [
-          `📻 **Now Streaming Live Radio (Radio Garden / Stream)**`,
+          `📻 **Now Streaming Live Radio**`,
           `• **Station:** ${stationName}`,
           `• **Stream URL:** ${streamUrl}`,
           `• **Voice Status:** 🔊 Connected & streaming live audio 24/7!`,
