@@ -6,6 +6,7 @@ import {
   createAudioResource,
   VoiceConnectionStatus,
   entersState,
+  StreamType,
   type DiscordGatewayAdapterCreator,
 } from '@discordjs/voice';
 import { ACTIVE_PLAYERS } from './music.ts';
@@ -119,11 +120,13 @@ export function createPlayRadioTool(getContext?: () => { message?: Message }): T
         await entersState(connection, VoiceConnectionStatus.Ready, 20_000);
         state.connection = connection;
 
-        const resource = createAudioResource(streamUrl, { inlineVolume: true });
+        const resource = createAudioResource(streamUrl, {
+          inlineVolume: true,
+          inputType: StreamType.Arbitrary,
+        });
         resource.volume?.setVolume(1.0);
         state.player.play(resource);
         connection.subscribe(state.player);
-
         state.current = {
           title: stationName,
           durationFormatted: 'Live 24/7',
