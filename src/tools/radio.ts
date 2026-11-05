@@ -6,6 +6,7 @@ import {
   createAudioResource,
   VoiceConnectionStatus,
   entersState,
+  StreamType,
   type DiscordGatewayAdapterCreator,
 } from '@discordjs/voice';
 import { ACTIVE_PLAYERS } from './music.ts';
@@ -48,6 +49,7 @@ export function createPlayRadioTool(getContext?: () => { message?: Message }): T
           const parts = directUrl.split('/');
           const channelId = parts[parts.length - 1] || parts[parts.length - 2];
           if (channelId) {
+            // 1. Fetch channel details for the title
             const apiRes = await fetch(`https://radio.garden/api/ara/content/channel/${channelId}`, {
               signal: AbortSignal.timeout(10_000),
             });
@@ -55,13 +57,21 @@ export function createPlayRadioTool(getContext?: () => { message?: Message }): T
               const apiData = (await apiRes.json()) as {
                 data?: {
                   title?: string;
-                  url?: string;
                 };
               };
-              if (apiData.data?.url) {
-                stationName = apiData.data.title || 'Radio Garden Station';
-                directUrl = `https://radio.garden${apiData.data.url}`;
+              if (apiData.data?.title) {
+                stationName = apiData.data.title;
               }
+            }
+
+            // 2. Resolve the true streaming URL via the Radio Garden listen endpoint (follows 302 redirect)
+            const listenUrl = `https://radio.garden/api/ara/content/listen/${channelId}/channel.mp3`;
+            const listenRes = await fetch(listenUrl, { redirect: 'manual', signal: AbortSignal.timeout(10_000) });
+            const redirectLoc = listenRes.headers.get('location');
+            if (redirectLoc) {
+              directUrl = redirectLoc;
+            } else {
+              directUrl = listenUrl;
             }
           }
         }
@@ -91,7 +101,6 @@ export function createPlayRadioTool(getContext?: () => { message?: Message }): T
           return `🎵 Selected radio station: **${stationName}**. *Join a voice channel to start live streaming.*`;
         }
 
-        // Fetch live stream body as a Node readable stream
         const streamRes = await fetch(streamUrl, {
           headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) NovaBot/1.0' },
           signal: AbortSignal.timeout(15_000),
@@ -130,7 +139,10 @@ export function createPlayRadioTool(getContext?: () => { message?: Message }): T
         await entersState(connection, VoiceConnectionStatus.Ready, 20_000);
         state.connection = connection;
 
-        const resource = createAudioResource(nodeStream, { inlineVolume: true });
+        const resource = createAudioResource(nodeStream, {
+          inlineVolume: true,
+          inputType: StreamType.Arbitrary,
+        });
         resource.volume?.setVolume(1.0);
         state.player.play(resource);
         connection.subscribe(state.player);
@@ -149,7 +161,7 @@ export function createPlayRadioTool(getContext?: () => { message?: Message }): T
         });
 
         return [
-          `📻 **Now Streaming Live Radio**`,
+          `📻 **Now Streaming Live Radio (Radio Garden Resolved)**`,
           `• **Station:** ${stationName}`,
           `• **Stream URL:** ${streamUrl}`,
           `• **Voice Status:** 🔊 Connected & streaming live audio 24/7!`,
