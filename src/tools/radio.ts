@@ -1,5 +1,6 @@
 import type { Tool } from './types.ts';
 import type { Message } from 'discord.js';
+import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import {
   joinVoiceChannel,
   createAudioPlayer,
@@ -29,7 +30,7 @@ export function createPlayRadioTool(getContext?: () => { message?: Message }): T
   return {
     name: 'play_radio',
     description:
-      'Stream a live Internet radio station (Radio Garden URL, Icecast/Shoutcast stream URL, or preset like lofi, jazz, classical) live into the user voice channel.',
+      'Stream a live Internet radio station (Radio Garden URL, Icecast/Shoutcast stream URL, or preset like lofi, jazz, classical) live into the user voice channel with embeds and controls.',
     parameters: {
       type: 'object',
       properties: {
@@ -49,7 +50,6 @@ export function createPlayRadioTool(getContext?: () => { message?: Message }): T
           const parts = directUrl.split('/');
           const channelId = parts[parts.length - 1] || parts[parts.length - 2];
           if (channelId) {
-            // 1. Fetch channel details for the title
             const apiRes = await fetch(`https://radio.garden/api/ara/content/channel/${channelId}`, {
               signal: AbortSignal.timeout(10_000),
             });
@@ -64,7 +64,6 @@ export function createPlayRadioTool(getContext?: () => { message?: Message }): T
               }
             }
 
-            // 2. Resolve the true streaming URL via the Radio Garden listen endpoint (follows 302 redirect)
             const listenUrl = `https://radio.garden/api/ara/content/listen/${channelId}/channel.mp3`;
             const listenRes = await fetch(listenUrl, { redirect: 'manual', signal: AbortSignal.timeout(10_000) });
             const redirectLoc = listenRes.headers.get('location');
@@ -110,6 +109,9 @@ export function createPlayRadioTool(getContext?: () => { message?: Message }): T
         }
 
         const nodeStream = Readable.fromWeb(streamRes.body as unknown as import('stream/web').ReadableStream);
+        nodeStream.on('error', (err) => {
+          console.error('Radio stream reader error:', err);
+        });
 
         let state = ACTIVE_PLAYERS.get(guild.id);
         if (!state) {
@@ -160,12 +162,25 @@ export function createPlayRadioTool(getContext?: () => { message?: Message }): T
           console.error('Radio player error:', err);
         });
 
-        return [
-          `📻 **Now Streaming Live Radio (Radio Garden Resolved)**`,
-          `• **Station:** ${stationName}`,
-          `• **Stream URL:** ${streamUrl}`,
-          `• **Voice Status:** 🔊 Connected & streaming live audio 24/7!`,
-        ].join('\n');
+        const embed = new EmbedBuilder()
+          .setColor(0x1DB954)
+          .setTitle('📻 Now Streaming Live Radio')
+          .setDescription(`[${stationName}](${streamUrl})`)
+          .addFields(
+            { name: '📡 Stream Type', value: 'Live 24/7 Audio Feed', inline: true },
+            { name: '👤 Requested By', value: msg?.author?.username || 'User', inline: true },
+          );
+
+        const controlRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder().setCustomId('pause').setLabel('Pause/Resume').setEmoji('⏯️').setStyle(ButtonStyle.Secondary),
+          new ButtonBuilder().setCustomId('music-stop').setLabel('Stop').setEmoji('⏹️').setStyle(ButtonStyle.Danger),
+        );
+
+        if (msg && msg.channel && msg.channel.isSendable()) {
+          await msg.channel.send({ embeds: [embed], components: [controlRow] });
+        }
+
+        return `Now streaming live radio: **${stationName}**.`;
       } catch (err) {
         return `Radio streaming failed: ${err instanceof Error ? err.message : String(err)}`;
       }
