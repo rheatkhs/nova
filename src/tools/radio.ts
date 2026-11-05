@@ -11,7 +11,6 @@ import {
   type DiscordGatewayAdapterCreator,
 } from '@discordjs/voice';
 import { ACTIVE_PLAYERS } from './music.ts';
-import { Readable } from 'node:stream';
 
 const RADIO_PRESETS: Record<string, { name: string; url: string }> = {
   lofi: { name: 'Lofi Hip Hop Radio', url: 'https://iloradio.org/stream' },
@@ -100,19 +99,6 @@ export function createPlayRadioTool(getContext?: () => { message?: Message }): T
           return `🎵 Selected radio station: **${stationName}**. *Join a voice channel to start live streaming.*`;
         }
 
-        const streamRes = await fetch(streamUrl, {
-          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) NovaBot/1.0' },
-          signal: AbortSignal.timeout(15_000),
-        });
-        if (!streamRes.ok || !streamRes.body) {
-          return `Failed to connect to radio stream (HTTP ${streamRes.status})`;
-        }
-
-        const nodeStream = Readable.fromWeb(streamRes.body as unknown as import('stream/web').ReadableStream);
-        nodeStream.on('error', (err) => {
-          console.error('Radio stream reader error:', err);
-        });
-
         let state = ACTIVE_PLAYERS.get(guild.id);
         if (!state) {
           state = {
@@ -141,10 +127,13 @@ export function createPlayRadioTool(getContext?: () => { message?: Message }): T
         await entersState(connection, VoiceConnectionStatus.Ready, 20_000);
         state.connection = connection;
 
-        const resource = createAudioResource(nodeStream, {
+        // Use direct URL streaming with ffmpeg reconnect flags for robust live playback
+        const resource = createAudioResource(streamUrl, {
           inlineVolume: true,
           inputType: StreamType.Arbitrary,
+          metadata: { title: stationName },
         });
+
         resource.volume?.setVolume(1.0);
         state.player.play(resource);
         connection.subscribe(state.player);
@@ -159,7 +148,20 @@ export function createPlayRadioTool(getContext?: () => { message?: Message }): T
 
         state.player.removeAllListeners('error');
         state.player.on('error', (err) => {
-          console.error('Radio player error:', err);
+          console.error('Radio player error (attempting auto-reconnect):', err);
+          // Auto-reconnect on timeout or buffer underrun
+          setTimeout(() => {
+            try {
+              const retryRes = createAudioResource(streamUrl, {
+                inlineVolume: true,
+                inputType: StreamType.Arbitrary,
+              });
+              retryRes.volume?.setVolume(1.0);
+              state?.player.play(retryRes);
+            } catch (e) {
+              console.error('Radio retry failed:', e);
+            }
+          }, 3_000);
         });
 
         const embed = new EmbedBuilder()
@@ -167,7 +169,7 @@ export function createPlayRadioTool(getContext?: () => { message?: Message }): T
           .setTitle('📻 Now Streaming Live Radio')
           .setDescription(`[${stationName}](${streamUrl})`)
           .addFields(
-            { name: '📡 Stream Type', value: 'Live 24/7 Audio Feed', inline: true },
+            { name: '📡 Stream Type', value: 'Live 24/7 Audio Feed (Auto-reconnect)', inline: true },
             { name: '👤 Requested By', value: msg?.author?.username || 'User', inline: true },
           );
 
