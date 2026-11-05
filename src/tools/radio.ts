@@ -27,42 +27,70 @@ export function createPlayRadioTool(getContext?: () => { message?: Message }): T
   return {
     name: 'play_radio',
     description:
-      'Stream a live Internet radio station (Icecast/Shoutcast stream URL or preset like lofi, jazz, classical) live into the user voice channel.',
+      'Stream a live Internet radio station (Radio Garden URL, Icecast/Shoutcast stream URL, or preset like lofi, jazz, classical) live into the user voice channel.',
     parameters: {
       type: 'object',
       properties: {
         station: { type: 'string', description: 'Preset radio station name (lofi, classical, jazz, chillout)' },
-        url: { type: 'string', description: 'Direct live radio stream URL (.mp3 or .aac stream)' },
+        url: { type: 'string', description: 'Radio Garden link or direct live radio stream URL (.mp3 or .aac stream)' },
         voiceChannelId: { type: 'string', description: 'Optional voice channel ID to join' },
       },
       required: [],
     },
     async execute(args): Promise<string> {
       const stationKey = String(args.station || '').trim().toLowerCase();
-      const directUrl = String(args.url || '').trim();
-
-      const preset = RADIO_PRESETS[stationKey] || RADIO_PRESETS['lofi'];
-      const streamUrl = directUrl || preset?.url;
-      const stationName = directUrl ? 'Custom Radio Stream' : (preset?.name || 'Live Radio');
-
-      if (!streamUrl) return 'Error: station or url is required';
-
-      const ctx = getContext?.();
-      const msg = ctx?.message;
-      const guild = msg?.guild;
-
-      if (!guild) {
-        return 'Error: radio streaming is only supported inside servers.';
-      }
-
-      const memberVoiceChannel = msg?.member?.voice?.channel;
-      const targetVoiceId = String(args.voiceChannelId || memberVoiceChannel?.id || '');
-
-      if (!targetVoiceId) {
-        return `🎵 Selected radio station: **${stationName}**. *Join a voice channel to start live streaming.*`;
-      }
+      let directUrl = String(args.url || '').trim();
+      let stationName = 'Live Radio';
 
       try {
+        // If input is a Radio Garden URL (e.g. https://radio.garden/listen/.../sMt85ocC)
+        if (directUrl.includes('radio.garden')) {
+          const parts = directUrl.split('/');
+          const channelId = parts[parts.length - 1] || parts[parts.length - 2];
+          if (channelId) {
+            const apiRes = await fetch(`https://radio.garden/api/ara/content/channel/${channelId}`, {
+              signal: AbortSignal.timeout(10_000),
+            });
+            if (apiRes.ok) {
+              const apiData = (await apiRes.json()) as {
+                data?: {
+                  title?: string;
+                  url?: string;
+                };
+              };
+              if (apiData.data?.url) {
+                stationName = apiData.data.title || 'Radio Garden Station';
+                directUrl = `https://radio.garden${apiData.data.url}`;
+              }
+            }
+          }
+        }
+
+        const preset = RADIO_PRESETS[stationKey] || RADIO_PRESETS['lofi'];
+        const streamUrl = directUrl || preset?.url;
+        if (!directUrl && !stationKey) {
+          stationName = preset?.name || 'Live Radio';
+        } else if (directUrl && stationName === 'Live Radio') {
+          stationName = 'Custom Radio Stream';
+        }
+
+        if (!streamUrl) return 'Error: station or url is required';
+
+        const ctx = getContext?.();
+        const msg = ctx?.message;
+        const guild = msg?.guild;
+
+        if (!guild) {
+          return 'Error: radio streaming is only supported inside servers.';
+        }
+
+        const memberVoiceChannel = msg?.member?.voice?.channel;
+        const targetVoiceId = String(args.voiceChannelId || memberVoiceChannel?.id || '');
+
+        if (!targetVoiceId) {
+          return `🎵 Selected radio station: **${stationName}**. *Join a voice channel to start live streaming.*`;
+        }
+
         let state = ACTIVE_PLAYERS.get(guild.id);
         if (!state) {
           state = {
@@ -101,7 +129,7 @@ export function createPlayRadioTool(getContext?: () => { message?: Message }): T
           durationFormatted: 'Live 24/7',
           url: streamUrl,
           thumbnail: null,
-          requestedBy: msg.author.username,
+          requestedBy: msg?.author?.username || 'User',
         };
 
         state.player.removeAllListeners('error');
@@ -110,7 +138,7 @@ export function createPlayRadioTool(getContext?: () => { message?: Message }): T
         });
 
         return [
-          `📻 **Now Streaming Live Radio**`,
+          `📻 **Now Streaming Live Radio (Radio Garden / Stream)**`,
           `• **Station:** ${stationName}`,
           `• **Stream URL:** ${streamUrl}`,
           `• **Voice Status:** 🔊 Connected & streaming live audio 24/7!`,
