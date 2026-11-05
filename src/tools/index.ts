@@ -14,6 +14,7 @@ import { testWebhookTool } from './webhook.ts';
 import { runCodeTool } from './repl.ts';
 import { playMusicTool } from './music.ts';
 import { essayExamTool } from './essay-exam.ts';
+import { playRadioTool } from './radio.ts';
 
 export * from './types.ts';
 export * from './time.ts';
@@ -33,6 +34,7 @@ export * from './reminder.ts';
 export * from './repl.ts';
 export * from './music.ts';
 export * from './essay-exam.ts';
+export * from './radio.ts';
 
 export const defaultTools: readonly Tool[] = [
   getCurrentTimeTool,
@@ -50,4 +52,5 @@ export const defaultTools: readonly Tool[] = [
   runCodeTool,
   playMusicTool,
   essayExamTool,
+  playRadioTool,
 ];
